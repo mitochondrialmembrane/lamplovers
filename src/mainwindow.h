@@ -2,13 +2,14 @@
 
 #include <QMainWindow>
 #include "glwidget.h"
+#include <QtCore>
 
 class MainWindow : public QWidget
 {
     Q_OBJECT
 
 public:
-    MainWindow();
+    MainWindow(QSettings& settings);
     ~MainWindow();
 
 private:

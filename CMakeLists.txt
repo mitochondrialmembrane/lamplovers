@@ -52,7 +52,8 @@ add_executable(${PROJECT_NAME}
 )
 
 # GLEW: this creates its library and allows you to `#include "GL/glew.h"`
-add_library(StaticGLEW STATIC glew/src/glew.c)
+add_library(StaticGLEW STATIC glew/src/glew.c
+    util/simulationutils.h util/simulationutils.cpp)
 include_directories(${PROJECT_NAME} PRIVATE glew/include)
 
 # Specifies libraries to be linked (Qt components, glew, etc)
@@ -80,6 +81,10 @@ qt6_add_resources(${PROJECT_NAME} "Resources"
         resources/shaders/shader.frag
         resources/shaders/shader.vert
         example-meshes/single-tet.mesh
+        example-meshes/cube.mesh
+        example-meshes/sphere.mesh
+        example-meshes/ellipsoid.mesh
+        example-meshes/cone.mesh
 )
 
 # GLEW: this provides support for Windows (including 64-bit)

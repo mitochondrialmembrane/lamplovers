@@ -8,6 +8,7 @@
 #include "graphics/camera.h"
 #include "graphics/shader.h"
 
+#include <QtCore>
 #include <QOpenGLWidget>
 #include <QElapsedTimer>
 #include <QTimer>
@@ -18,7 +19,7 @@ class GLWidget : public QOpenGLWidget
     Q_OBJECT
 
 public:
-    GLWidget(QWidget *parent = nullptr);
+    GLWidget(QSettings& settings, QWidget *parent = nullptr);
     ~GLWidget();
 
 private:
@@ -54,6 +55,9 @@ private:
     int m_lastY;
 
     bool m_capture;
+    bool m_paused;
+    bool m_dragging;
+    Eigen::Vector2i lastChange;
 
 private slots:
 

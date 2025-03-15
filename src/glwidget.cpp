@@ -9,11 +9,11 @@
 
 using namespace std;
 
-GLWidget::GLWidget(QWidget *parent) :
+GLWidget::GLWidget(QSettings& settings, QWidget *parent) :
     QOpenGLWidget(parent),
     m_deltaTimeProvider(),
     m_intervalTimer(),
-    m_sim(),
+    m_sim(settings),
     m_camera(),
     m_shader(),
     m_forward(),
@@ -21,7 +21,10 @@ GLWidget::GLWidget(QWidget *parent) :
     m_vertical(),
     m_lastX(),
     m_lastY(),
-    m_capture(false)
+    m_capture(false),
+    m_paused(false),
+    m_dragging(false),
+    lastChange(Eigen::Vector2i(0,0))
 {
     // GLWidget needs all mouse move events, not just mouse drag events
     setMouseTracking(true);
@@ -71,7 +74,7 @@ void GLWidget::initializeGL()
     m_camera.setPerspective(120, width() / static_cast<float>(height()), 0.1, 50);
 
     m_deltaTimeProvider.start();
-    m_intervalTimer.start(1000 / 60);
+    m_intervalTimer.start(1);
 }
 
 void GLWidget::paintGL()
@@ -111,6 +114,10 @@ void GLWidget::mouseMoveEvent(QMouseEvent *event)
 
     if (deltaX == 0 && deltaY == 0) return;
 
+    lastChange = Eigen::Vector2i(deltaX, deltaY);
+
+    if (m_dragging) return;
+
     m_camera.rotate(deltaY * ROTATE_SPEED,
                     -deltaX * ROTATE_SPEED);
 
@@ -143,7 +150,9 @@ void GLWidget::keyPressEvent(QKeyEvent *event)
     case Qt::Key_R: m_vertical += SPEED; break;
     case Qt::Key_C: m_camera.toggleIsOrbiting(); break;
     case Qt::Key_T: m_sim.toggleWire(); break;
-    case Qt::Key_Escape: QApplication::quit();
+    case Qt::Key_Escape: QApplication::quit(); break;
+    case Qt::Key_P: m_paused = !m_paused; break;
+    case Qt::Key_Space: m_dragging = true;
     }
 }
 
@@ -159,6 +168,7 @@ void GLWidget::keyReleaseEvent(QKeyEvent *event)
     case Qt::Key_D: m_sideways -= SPEED; break;
     case Qt::Key_F: m_vertical += SPEED; break;
     case Qt::Key_R: m_vertical -= SPEED; break;
+    case Qt::Key_Space: m_dragging = false;
     }
 }
 
@@ -167,7 +177,7 @@ void GLWidget::keyReleaseEvent(QKeyEvent *event)
 void GLWidget::tick()
 {
     float deltaSeconds = m_deltaTimeProvider.restart() / 1000.f;
-    m_sim.update(deltaSeconds);
+    m_sim.update(deltaSeconds, m_paused, m_dragging ? Eigen::Vector2d(double(lastChange[0]), -double(lastChange[1])) : Eigen::Vector2d(0,0), m_camera.getLook());
 
     // Move camera
     auto look = m_camera.getLook();
