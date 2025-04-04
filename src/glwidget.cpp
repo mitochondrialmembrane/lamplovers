@@ -58,9 +58,12 @@ void GLWidget::initializeGL()
     glClearColor(1, 1, 1, 1);
 
     // Enable depth-testing and backface culling
-    glEnable(GL_DEPTH_TEST);
-    glEnable(GL_CULL_FACE);
-    glCullFace(GL_BACK);
+    glDepthMask(GL_FALSE);
+    //glEnable(GL_CULL_FACE);
+    glEnable(GL_PROGRAM_POINT_SIZE);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    //glCullFace(GL_BACK);
 
     // Initialize the shader and simulation
     m_shader = new Shader(":/resources/shaders/shader.vert", ":/resources/shaders/shader.frag");
@@ -149,7 +152,6 @@ void GLWidget::keyPressEvent(QKeyEvent *event)
     case Qt::Key_F: m_vertical -= SPEED; break;
     case Qt::Key_R: m_vertical += SPEED; break;
     case Qt::Key_C: m_camera.toggleIsOrbiting(); break;
-    case Qt::Key_T: m_sim.toggleWire(); break;
     case Qt::Key_Escape: QApplication::quit(); break;
     case Qt::Key_P: m_paused = !m_paused; break;
     case Qt::Key_Space: m_dragging = true;
@@ -177,7 +179,7 @@ void GLWidget::keyReleaseEvent(QKeyEvent *event)
 void GLWidget::tick()
 {
     float deltaSeconds = m_deltaTimeProvider.restart() / 1000.f;
-    m_sim.update(deltaSeconds, m_paused, m_dragging ? Eigen::Vector2d(double(lastChange[0]), -double(lastChange[1])) : Eigen::Vector2d(0,0), m_camera.getLook());
+    m_sim.update(deltaSeconds);
 
     // Move camera
     auto look = m_camera.getLook();

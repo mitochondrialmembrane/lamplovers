@@ -47,6 +47,40 @@ bool MeshLoader::loadTetMesh(const std::string &filepath, std::vector<Eigen::Vec
     return true;
 }
 
+bool MeshLoader::loadFaceMesh(const std::string &filepath, std::vector<Eigen::Vector3d> &vertices, std::vector<Eigen::Vector3i> &faces)
+{
+    QString qpath = QString::fromStdString(filepath);
+    QFile file(qpath);
+
+    if(!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        std::cout << "Error opening file: " << filepath << std::endl;
+        return false;
+    }
+    QTextStream in(&file);
+
+    QRegularExpression vrxp("v (-?\\d*\\.?\\d+) +(-?\\d*\\.?\\d+) +(-?\\d*\\.?\\d+)");
+    QRegularExpression trxp("f (\\d+) +(\\d+) +(\\d+)");
+
+    while(!in.atEnd()) {
+        QString line = in.readLine();
+        auto match = vrxp.match(line);
+        if(match.hasMatch()) {
+            vertices.emplace_back(match.captured(1).toDouble(),
+                                  match.captured(2).toDouble(),
+                                  match.captured(3).toDouble());
+            continue;
+        }
+        match = trxp.match(line);
+        if(match.hasMatch()) {
+            faces.emplace_back(match.captured(1).toInt(),
+                               match.captured(2).toInt(),
+                               match.captured(3).toInt());
+        }
+    }
+    file.close();
+    return true;
+}
+
 MeshLoader::MeshLoader()
 {
 

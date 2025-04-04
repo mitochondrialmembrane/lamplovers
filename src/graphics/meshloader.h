@@ -10,6 +10,7 @@ class MeshLoader
 {
 public:
     static bool loadTetMesh(const std::string &filepath, std::vector<Eigen::Vector3d> &vertices, std::vector<Eigen::Vector4i> &tets);
+    static bool loadFaceMesh(const std::string &filepath, std::vector<Eigen::Vector3d> &vertices, std::vector<Eigen::Vector3i> &faces);
 private:
     MeshLoader();
 };

@@ -103,11 +103,11 @@ void Shape::init(const std::vector<Eigen::Vector3d> &vertices, const std::vector
     m_verticesSize = vertices.size();
     m_faces = triangles;
 
-    if (vertices.size() > 4) { //shape
+    if (vertices.size() > 4) { //box
         m_red = 0.93;
         m_green = 0.8;
         m_blue = 1.f;
-        m_alpha = 1.f;
+        m_alpha = 0.5f;
     } else { //ground
         m_red = 1;
         m_green = 1;
@@ -230,6 +230,7 @@ void Shape::draw(Shader *shader)
         shader->setUniform("green", 1);
         shader->setUniform("blue",  1);
         shader->setUniform("alpha", 1);
+        shader->setUniform("u_renderMode", 0);
         glBindVertexArray(m_tetVao);
         glDrawElements(GL_LINES, m_numTetVertices, GL_UNSIGNED_INT, reinterpret_cast<GLvoid *>(0));
         glBindVertexArray(0);
@@ -241,6 +242,7 @@ void Shape::draw(Shader *shader)
         shader->setUniform("green", m_green);
         shader->setUniform("blue",  m_blue);
         shader->setUniform("alpha", m_alpha);
+        shader->setUniform("u_renderMode", 0);
         glBindVertexArray(m_surfaceVao);
         glDrawElements(GL_TRIANGLES, m_numSurfaceVertices, GL_UNSIGNED_INT, reinterpret_cast<GLvoid *>(0));
         glBindVertexArray(0);

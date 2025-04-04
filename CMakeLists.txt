@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 
 # Sets project name
-project(simulation LANGUAGES CXX C)
+project(lamplovers LANGUAGES CXX C)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
@@ -53,7 +53,8 @@ add_executable(${PROJECT_NAME}
 
 # GLEW: this creates its library and allows you to `#include "GL/glew.h"`
 add_library(StaticGLEW STATIC glew/src/glew.c
-    util/simulationutils.h util/simulationutils.cpp)
+    util/simulationutils.h util/simulationutils.cpp
+    src/graphics/pointcloud.h src/graphics/pointcloud.cpp)
 include_directories(${PROJECT_NAME} PRIVATE glew/include)
 
 # Specifies libraries to be linked (Qt components, glew, etc)
