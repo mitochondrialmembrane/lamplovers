@@ -13,17 +13,22 @@ Simulation::Simulation(QSettings& settings) :
     fluid1_density(settings.value("Parameters/fluid1_density").toFloat()),
     fluid1_viscosity(settings.value("Parameters/fluid1_viscosity").toFloat()),
     fluid1_mass(1),
-    idealGas(settings.value("Parameters/idealGas").toFloat()),
+    idealGasConstant(settings.value("Parameters/idealGasConstant").toFloat()),
     surfaceTensionThreshold(settings.value("Parameters/surfaceTensionThreshold").toFloat()),
     surfaceTensionCoeff(settings.value("Parameters/surfaceTensionCoeff").toFloat()),
     gravity(Vector3d(settings.value("Parameters/gravity_x").toFloat(),
                     settings.value("Parameters/gravity_y").toFloat(),
                     settings.value("Parameters/gravity_z").toFloat())),
     h(settings.value("Parameters/smoothingLength").toFloat()),
+
+    // Kernel coeffs
+
     Wpoly6Coeff(315.f / (M_PI * pow(h, 9) * 64)),
     Wpoly6GradCoeff(945.f / (M_PI * pow(h, 9) * 32)),
     Wpoly6LaplacianCoeff(945.f / (M_PI * pow(h, 9) * 8)),
-    WspikyGradViscosityLaplacianCoeff(45.f / (M_PI * pow(h, 6))),
+    WspikyGradCoeff(45.f / (M_PI * pow(h, 6))),
+    WviscosityLaplacianCoeff(45.f / (M_PI * pow(h, 6))),    // coeff of spiky kernel grad and viscosity kernel laplacian
+
     m_pointcloud(20)
 
 {}
@@ -77,23 +82,48 @@ void Simulation::update(double seconds)
     // Note that the "seconds" parameter represents the amount of time that has passed since
     // the last update
 
-    seconds = 0.001;
+    // m_particles[i]->velocity += accelerations[i] * seconds;
+    // m_positions[i] += m_particles[i]->velocity * seconds;
+    //std::cout << m_positions[i] << std::endl;
+
+
+    seconds = 0.01;
 
     std::vector<Vector3d> accelerations;
     accelerations.resize(m_positions.size());
     for (int i = 0; i < m_positions.size(); i++) {
         accelerations[i] = (fPressure(i) + fViscosity(i)) / m_particles[i]->density + gravity;
     }
+
+    std::vector<Vector3d> newAccelerations = accelerations;
     for (int i = 0; i < m_positions.size(); i++) {
-        m_particles[i]->velocity += accelerations[i] * seconds;
-        m_positions[i] += m_particles[i]->velocity * seconds;
+
+        // Leapfrog
+
+        m_positions[i] += m_particles[i]->velocity * seconds + 0.5 * accelerations[i] * seconds * seconds; // Update position
+    }
+
+    for (int i = 0; i < m_positions.size(); i++) {
+        m_particles[i]->density = density_S(i);
+        m_particles[i]->pressure = calculatePressure(m_particles[i]->density); // Update density+pressure using new position
+    }
+
+    for (int i = 0; i < m_positions.size(); i++) {
+
+        newAccelerations[i] = (fPressure(i) + fViscosity(i) + fSurfaceTension(i)) / m_particles[i]->density + gravity; // Update acceleration
+    }
+
+    for (int i = 0; i < m_positions.size(); i++) {
+
+        m_particles[i]->velocity += 0.5 * (accelerations[i] + newAccelerations[i]) * seconds; // Update velocity using both position and acceleration
         evaluateCollisions(i);
-        //std::cout << m_positions[i] << std::endl;
+
     }
     for (int i = 0; i < m_positions.size(); i++) {
         m_particles[i]->density = density_S(i);
         m_particles[i]->pressure = calculatePressure(m_particles[i]->density);
     }
+
     m_pointcloud.setPoints(m_positions);
 }
 
@@ -148,7 +178,7 @@ void Simulation::initBox()
 double Simulation::density_S(int i) {
     double out = 0;
     for (int j = 0; j < m_positions.size(); j++) {
-        if (i == j) continue;
+        // if (i == j) continue; not necessary??
         double r_squared = (m_positions[i] - m_positions[j]).squaredNorm() + 0.00001;
         if (r_squared < h * h) {
             out += m_particles[j]->mass * Wpoly6Coeff * pow((h * h - r_squared), 3);
@@ -158,19 +188,19 @@ double Simulation::density_S(int i) {
 }
 
 double Simulation::calculatePressure(double density) {
-    return idealGas * (density - fluid1_density);
+    return idealGasConstant * (density - fluid1_density);
 }
 
 Vector3d Simulation::fPressure(int i) {
     double pressureI = m_particles[i]->pressure;
     Vector3d out(0,0,0);
     for (int j = 0; j < m_positions.size(); j++) {
-        if (i == j) continue;
+        // if (i == j) continue;
         Particle *particleJ = m_particles[j];
         Vector3d r = m_positions[i] - m_positions[j];
         double r_norm = r.norm() + 0.00001;
         if (r_norm < h) {
-            Vector3d W_Grad = (-WspikyGradViscosityLaplacianCoeff * pow((h - r_norm), 2) / r_norm) * r;
+            Vector3d W_Grad = (-WspikyGradCoeff * pow((h - r_norm), 2) / r_norm) * r;
             out += particleJ->mass * (particleJ->pressure + pressureI) / (2 * particleJ->density) * W_Grad;
         }
     }
@@ -181,22 +211,23 @@ Vector3d Simulation::fViscosity(int i) {
     Vector3d velocityI = m_particles[i]->velocity;
     Vector3d out(0,0,0);
     for (int j = 0; j < m_positions.size(); j++) {
-        if (i == j) continue;
+        // if (i == j) continue;
         Particle *particleJ = m_particles[j];
         Vector3d r = m_positions[i] - m_positions[j];
         double r_norm = r.norm() + 0.00001;
         if (r_norm < h) {
-            double W_Laplacian = WspikyGradViscosityLaplacianCoeff * (h - r_norm);
+            double W_Laplacian = WviscosityLaplacianCoeff * (h - r_norm);
             out += (particleJ->mass / particleJ->density * W_Laplacian) * (particleJ->velocity - velocityI);
         }
     }
+
     return fluid1_viscosity * out;
 }
 
 Vector3d Simulation::fSurfaceTension(int i) {
     Vector3d normal(0,0,0);
     for (int j = 0; j < m_positions.size(); j++) {
-        if (i == j) continue;
+        // if (i == j) continue;
         Particle *particleJ = m_particles[j];
         Vector3d r = m_positions[i] - m_positions[j];
         double r_norm = r.norm() + 0.00001;
@@ -205,12 +236,12 @@ Vector3d Simulation::fSurfaceTension(int i) {
             normal += (particleJ->mass / particleJ->density) * W_Grad;
         }
     }
-
+    // std::cout << normal.norm() << std::endl;
     if (normal.norm() < surfaceTensionThreshold) return Vector3d(0,0,0);
 
     double C_S_Laplacian = 0;
     for (int j = 0; j < m_positions.size(); j++) {
-        if (i == j) continue;
+        // if (i == j) continue;
         Particle *particleJ = m_particles[j];
         Vector3d r = m_positions[i] - m_positions[j];
         double r_squaredNorm = r.squaredNorm() + 0.00001;
@@ -233,11 +264,12 @@ void Simulation::evaluateCollisions(int i) {
 }
 
 Vector3d Simulation::checkCollision(Vector3d pos) {
-    float wall = 1.5;
-    if (pos[1] < 0) return Vector3d(0,1,0) * -pos[1];
-    if (pos[0] > wall) return Vector3d(-1,0,0) * (pos[0] - wall);
-    if (pos[0] < -wall) return Vector3d(1,0,0) * (-wall - pos[0]);
-    if (pos[2] > wall) return Vector3d(0,0,-1) * (pos[2] - wall);
-    if (pos[2] < -wall) return Vector3d(0,0,1) * (-wall - pos[2]);
-    return Vector3d(0,0,0);
+    float wall = 0.4;
+    Vector3d returnVector(0,0,0);
+    if (pos[1] < 0) returnVector += Vector3d(0,1,0) * -pos[1];
+    if (pos[0] > wall) returnVector += Vector3d(-1,0,0) * (pos[0] - wall);
+    if (pos[0] < -wall) returnVector += Vector3d(1,0,0) * (-wall - pos[0]);
+    if (pos[2] > wall) returnVector += Vector3d(0,0,-1) * (pos[2] - wall);
+    if (pos[2] < -wall) returnVector += Vector3d(0,0,1) * (-wall - pos[2]);
+    return returnVector;
 }

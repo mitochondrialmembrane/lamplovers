@@ -51,12 +51,13 @@ private:
     const float fluid1_density;
     const float fluid1_viscosity;
     const float fluid1_mass;
-    const float idealGas;
+    const float idealGasConstant;
     const float h;
     const float Wpoly6Coeff;
     const float Wpoly6GradCoeff;
     const float Wpoly6LaplacianCoeff;
-    const float WspikyGradViscosityLaplacianCoeff;
+    const float WspikyGradCoeff;
+    const float WviscosityLaplacianCoeff;
     const Eigen::Vector3d gravity;
     const double surfaceTensionThreshold;
     const double surfaceTensionCoeff;
