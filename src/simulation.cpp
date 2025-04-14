@@ -50,9 +50,9 @@ void Simulation::init()
     }**/
     //m_shape.setModelMatrix(Affine3f(Eigen::Translation3f(0, 2, 0)));
     for (int i = 0; i < 10; i++) {
-        for (int j = 0; j < 10; j++) {
-            for (int k = 0; k < 10; k++) {
-                m_positions.push_back(Vector3d(0.1 * i, 1 + 0.1 * j, 0.1 * k));
+        for (int j = 0; j < 20; j++) {
+            for (int k = 0; k < 5; k++) {
+                m_positions.push_back(Vector3d(0.1 * i + 0.6, 0.1 * j, 0.1 * k - 0.2));
             }
         }
     }
@@ -264,12 +264,16 @@ void Simulation::evaluateCollisions(int i) {
 }
 
 Vector3d Simulation::checkCollision(Vector3d pos) {
-    float wall = 0.4;
+    float wallX = 1.5;
+    float wallZ = 0.2;
+    float ceiling = 2;
+
     Vector3d returnVector(0,0,0);
     if (pos[1] < 0) returnVector += Vector3d(0,1,0) * -pos[1];
-    if (pos[0] > wall) returnVector += Vector3d(-1,0,0) * (pos[0] - wall);
-    if (pos[0] < -wall) returnVector += Vector3d(1,0,0) * (-wall - pos[0]);
-    if (pos[2] > wall) returnVector += Vector3d(0,0,-1) * (pos[2] - wall);
-    if (pos[2] < -wall) returnVector += Vector3d(0,0,1) * (-wall - pos[2]);
+    if (pos[1] > ceiling) returnVector += Vector3d(0,-1,0) * (pos[1] - ceiling);
+    if (pos[0] > wallX) returnVector += Vector3d(-1,0,0) * (pos[0] - wallX);
+    if (pos[0] < -wallX) returnVector += Vector3d(1,0,0) * (-wallX - pos[0]);
+    if (pos[2] > wallZ) returnVector += Vector3d(0,0,-1) * (pos[2] - wallZ);
+    if (pos[2] < -wallZ) returnVector += Vector3d(0,0,1) * (-wallZ - pos[2]);
     return returnVector;
 }
