@@ -49,6 +49,9 @@ add_executable(${PROJECT_NAME}
 
     util/tiny_obj_loader.h
     util/unsupportedeigenthing/OpenGLSupport
+
+    src/parameterpanel.h
+    src/parameterpanel.cpp
 )
 
 # GLEW: this creates its library and allows you to `#include "GL/glew.h"`

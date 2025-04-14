@@ -20,18 +20,36 @@ Simulation::Simulation(QSettings& settings) :
                     settings.value("Parameters/gravity_y").toFloat(),
                     settings.value("Parameters/gravity_z").toFloat())),
     h(settings.value("Parameters/smoothingLength").toFloat()),
-
-    // Kernel coeffs
-
-    Wpoly6Coeff(315.f / (M_PI * pow(h, 9) * 64)),
-    Wpoly6GradCoeff(945.f / (M_PI * pow(h, 9) * 32)),
-    Wpoly6LaplacianCoeff(945.f / (M_PI * pow(h, 9) * 8)),
-    WspikyGradCoeff(45.f / (M_PI * pow(h, 6))),
-    WviscosityLaplacianCoeff(45.f / (M_PI * pow(h, 6))),    // coeff of spiky kernel grad and viscosity kernel laplacian
-
     m_pointcloud(20)
+{
+    // Initialize kernel coefficients
+    updateKernelCoefficients();
+}
 
-{}
+// Simulation::Simulation(QSettings& settings) :
+//     _settings(settings),
+//     fluid1_density(settings.value("Parameters/fluid1_density").toFloat()),
+//     fluid1_viscosity(settings.value("Parameters/fluid1_viscosity").toFloat()),
+//     fluid1_mass(1),
+//     idealGasConstant(settings.value("Parameters/idealGasConstant").toFloat()),
+//     surfaceTensionThreshold(settings.value("Parameters/surfaceTensionThreshold").toFloat()),
+//     surfaceTensionCoeff(settings.value("Parameters/surfaceTensionCoeff").toFloat()),
+//     gravity(Vector3d(settings.value("Parameters/gravity_x").toFloat(),
+//                     settings.value("Parameters/gravity_y").toFloat(),
+//                     settings.value("Parameters/gravity_z").toFloat())),
+//     h(settings.value("Parameters/smoothingLength").toFloat()),
+//
+//     // Kernel coeffs
+//
+//     Wpoly6Coeff(315.f / (M_PI * pow(h, 9) * 64)),
+//     Wpoly6GradCoeff(945.f / (M_PI * pow(h, 9) * 32)),
+//     Wpoly6LaplacianCoeff(945.f / (M_PI * pow(h, 9) * 8)),
+//     WspikyGradCoeff(45.f / (M_PI * pow(h, 6))),
+//     WviscosityLaplacianCoeff(45.f / (M_PI * pow(h, 6))),    // coeff of spiky kernel grad and viscosity kernel laplacian
+//
+//     m_pointcloud(20)
+//
+// {}
 
 void Simulation::init()
 {
@@ -276,4 +294,43 @@ Vector3d Simulation::checkCollision(Vector3d pos) {
     if (pos[2] > wallZ) returnVector += Vector3d(0,0,-1) * (pos[2] - wallZ);
     if (pos[2] < -wallZ) returnVector += Vector3d(0,0,1) * (-wallZ - pos[2]);
     return returnVector;
+}
+
+void Simulation::updateParameters(
+    float new_fluid1_density,
+    float new_fluid1_viscosity,
+    const Eigen::Vector3d& new_gravity,
+    float new_h,
+    float new_idealGasConstant,
+    float new_surfaceTensionThreshold,
+    float new_surfaceTensionCoeff
+) {
+    // Update parameters
+    fluid1_density = new_fluid1_density;
+    fluid1_viscosity = new_fluid1_viscosity;
+    gravity = new_gravity;
+    idealGasConstant = new_idealGasConstant;
+    surfaceTensionThreshold = new_surfaceTensionThreshold;
+    surfaceTensionCoeff = new_surfaceTensionCoeff;
+    
+    // Only update h and kernel coefficients if h has changed
+    if (h != new_h) {
+        h = new_h;
+        updateKernelCoefficients();
+    }
+    
+    // Update the density and pressure of all particles
+    for (int i = 0; i < m_positions.size(); i++) {
+        m_particles[i]->density = density_S(i);
+        m_particles[i]->pressure = calculatePressure(m_particles[i]->density);
+    }
+}
+
+void Simulation::updateKernelCoefficients() {
+    // Recalculate kernel coefficients based on new h value
+    Wpoly6Coeff = 315.f / (M_PI * pow(h, 9) * 64);
+    Wpoly6GradCoeff = 945.f / (M_PI * pow(h, 9) * 32);
+    Wpoly6LaplacianCoeff = 945.f / (M_PI * pow(h, 9) * 8);
+    WspikyGradCoeff = 45.f / (M_PI * pow(h, 6));
+    WviscosityLaplacianCoeff = 45.f / (M_PI * pow(h, 6));
 }
