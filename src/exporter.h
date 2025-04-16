@@ -14,13 +14,16 @@ public:
     // Initialize the Alembic archive
     void init(const std::string& filename, double fps = 24.0);
 
-    // Add a frame at the given time
-    void addFrame(const std::vector<Eigen::Vector3d>& particles);
+    // Add a frame with particles for both fluids
+    void addFrame(const std::vector<Eigen::Vector3d>& fluid1Particles,
+                  const std::vector<Eigen::Vector3d>& fluid2Particles);
 
 private:
-    Alembic::AbcGeom::OArchive m_archive;
-    Alembic::AbcGeom::OPoints m_pointsObj;
-    Alembic::AbcGeom::OPointsSchema* m_schema = nullptr;
-    Alembic::AbcGeom::TimeSamplingPtr m_timeSampling;
-    uint32_t m_timeSamplingIndex = 0;
+    Alembic::AbcGeom::OArchive m_archive;    // Alembic archive to store exported data
+    Alembic::AbcGeom::OPoints m_fluid1PointsObj;  // Points object for fluid 1
+    Alembic::AbcGeom::OPoints m_fluid2PointsObj;  // Points object for fluid 2
+    Alembic::AbcGeom::OPointsSchema* m_fluid1Schema = nullptr;  // Points schema for fluid 1
+    Alembic::AbcGeom::OPointsSchema* m_fluid2Schema = nullptr;  // Points schema for fluid 2
+    Alembic::AbcGeom::TimeSamplingPtr m_timeSampling;  // Time sampling information
+    uint32_t m_timeSamplingIndex = 0;  // Time sampling index
 };
