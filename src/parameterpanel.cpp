@@ -88,6 +88,7 @@ void ParameterPanel::createUI()
         m_settings.value("Parameters/surfaceTensionCoeff", 20.0f).toFloat(), 
         nullptr, nullptr
     };
+
     // Add reset button
     QGridLayout* gridLayout = new QGridLayout(paramGroup);
     paramGroup->setLayout(gridLayout);
@@ -97,6 +98,7 @@ void ParameterPanel::createUI()
     for (auto& [key, param] : m_parameters) {
         // Create parameter name label
         QLabel* nameLabel = new QLabel(param.displayName + ":");
+        nameLabel->setFont(QFont("", -1, QFont::Bold)); // Make it bold for emphasis
         
         // Create min/max labels
         QLabel* minLabel = new QLabel(QString::number(param.minValue, 'f', 1));
@@ -108,32 +110,33 @@ void ParameterPanel::createUI()
         param.slider->setValue(paramToSlider(param.defaultValue, param.minValue, param.maxValue));
         param.slider->setObjectName(param.name);
         param.slider->setToolTip(param.tooltip);
+        param.slider->setMinimumWidth(150);
         
         // Create value label
         param.valueLabel = new QLabel(QString::number(param.defaultValue, 'f', 2));
         param.valueLabel->setMinimumWidth(50);
         param.valueLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
         
-        // Add to grid layout
-        gridLayout->addWidget(nameLabel, row, 0);
-        gridLayout->addWidget(minLabel, row, 1);
-        gridLayout->addWidget(param.slider, row, 2);
-        gridLayout->addWidget(maxLabel, row, 3);
-        gridLayout->addWidget(param.valueLabel, row, 4);
+        // Add to grid layout - use 2 rows per parameter
+        gridLayout->addWidget(nameLabel, row * 2, 0, 1, 5); // Parameter name spans all columns
+
+        // Second row for controls - use explicit columns without spanning
+        gridLayout->addWidget(minLabel, row * 2 + 1, 0);     // Column 0: min value
+        gridLayout->addWidget(param.slider, row * 2 + 1, 1); // Column 1: slider
+        gridLayout->addWidget(maxLabel, row * 2 + 1, 2);     // Column 2: max value
+        gridLayout->addWidget(param.valueLabel, row * 2 + 1, 3); // Column 3: current value 
         
         row++;
     }
 
-    // Set column stretches
-    gridLayout->setColumnStretch(0, 2);  // Name column gets more space
-    gridLayout->setColumnStretch(1, 1);  // Min value column gets less space
-    gridLayout->setColumnStretch(2, 4);  // Slider gets most space
-    gridLayout->setColumnStretch(3, 1);  // Max value column gets less space
-    gridLayout->setColumnStretch(4, 1);  // Value label gets less space
-
-    // Set some spacing
-    gridLayout->setHorizontalSpacing(8);
-    gridLayout->setVerticalSpacing(2);
+    // Set column stretches - for the new column arrangement
+    gridLayout->setColumnStretch(0, 1);  // Min value - small space
+    gridLayout->setColumnStretch(1, 8);  // Slider - most space
+    gridLayout->setColumnStretch(2, 1);  // Max value - small space
+    gridLayout->setColumnStretch(3, 2);  // Current value - a bit more space for numbers
+    // Add spacing
+    gridLayout->setHorizontalSpacing(10);
+    gridLayout->setVerticalSpacing(5);
     
     m_resetButton = new QPushButton("Reset to Defaults");
     m_resetSimulationButton = new QPushButton("Reset Simulation");
