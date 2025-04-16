@@ -11,6 +11,15 @@ struct Particle {
     double mass;
     double pressure;
     double density;
+
+    // NEW ATTRIBUTES FOR MULTIPLE FLUIDS
+    double gasConstant;
+    double viscosity;
+    double restDensity;
+    double temperature; // in celsius
+    float colorI; // interface tension color
+    float colorS; // surface tension color
+
 };
 
 class Simulation
@@ -36,7 +45,7 @@ public:
     );
 
     double density_S(int i);
-    double calculatePressure(double density);
+    double calculatePressure(double density, double restDensity);
     Eigen::Vector3d fPressure(int i);
     Eigen::Vector3d fViscosity(int i);
     Eigen::Vector3d fSurfaceTension(int i);

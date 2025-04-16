@@ -79,7 +79,7 @@ void Simulation::init()
 
     m_particles.resize(m_positions.size());
     for (int i = 0; i < m_positions.size(); i++) {
-        m_particles[i] = new Particle{Vector3d(0,0,0), 1, 0, fluid1_density};
+        m_particles[i] = new Particle{Vector3d(0,0,0), 1, 0, fluid1_density, idealGasConstant, fluid1_viscosity, fluid1_density, 300, 0.5, 1};
     }
 
     initGround();
@@ -123,7 +123,7 @@ void Simulation::update(double seconds)
 
     for (int i = 0; i < m_positions.size(); i++) {
         m_particles[i]->density = density_S(i);
-        m_particles[i]->pressure = calculatePressure(m_particles[i]->density); // Update density+pressure using new position
+        m_particles[i]->pressure = calculatePressure(m_particles[i]->density, m_particles[i]->restDensity); // Update density+pressure using new position
     }
 
     for (int i = 0; i < m_positions.size(); i++) {
@@ -139,7 +139,7 @@ void Simulation::update(double seconds)
     }
     for (int i = 0; i < m_positions.size(); i++) {
         m_particles[i]->density = density_S(i);
-        m_particles[i]->pressure = calculatePressure(m_particles[i]->density);
+        m_particles[i]->pressure = calculatePressure(m_particles[i]->density, m_particles[i]->restDensity);
     }
 
     m_pointcloud.setPoints(m_positions);
@@ -205,8 +205,8 @@ double Simulation::density_S(int i) {
     return out;
 }
 
-double Simulation::calculatePressure(double density) {
-    return idealGasConstant * (density - fluid1_density);
+double Simulation::calculatePressure(double density, double restDensity) {
+    return idealGasConstant * (density - restDensity);
 }
 
 Vector3d Simulation::fPressure(int i) {
@@ -239,7 +239,7 @@ Vector3d Simulation::fViscosity(int i) {
         }
     }
 
-    return fluid1_viscosity * out;
+    return m_particles[i]->viscosity * out;
 }
 
 Vector3d Simulation::fSurfaceTension(int i) {
@@ -318,11 +318,18 @@ void Simulation::updateParameters(
         h = new_h;
         updateKernelCoefficients();
     }
+
+    // Update rest density, viscosity
+
+    for (int i = 0; i < m_positions.size(); i++) {
+        m_particles[i]->restDensity = fluid1_density;
+        m_particles[i]->viscosity = fluid1_viscosity;
+    }
     
     // Update the density and pressure of all particles
     for (int i = 0; i < m_positions.size(); i++) {
         m_particles[i]->density = density_S(i);
-        m_particles[i]->pressure = calculatePressure(m_particles[i]->density);
+        m_particles[i]->pressure = calculatePressure(m_particles[i]->density, m_particles[i]->restDensity);
     }
 }
 
