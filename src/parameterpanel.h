@@ -23,6 +23,7 @@ public:
 
 private slots:
     void resetToDefaults();
+    void resetSimulation();
     void updateParameter(int value);
 
 private:
@@ -51,4 +52,5 @@ private:
     
     std::map<QString, ParameterInfo> m_parameters;
     QPushButton* m_resetButton;
+    QPushButton* m_resetSimulationButton;
 };

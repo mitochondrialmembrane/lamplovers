@@ -43,6 +43,8 @@ public:
     Eigen::Vector3d checkCollision(Eigen::Vector3d pos);
     void evaluateCollisions(int i);
 
+    void reinitialize();
+
 private:
     Shape m_shape;
     Shape m_box;

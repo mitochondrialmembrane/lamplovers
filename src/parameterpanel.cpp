@@ -90,6 +90,7 @@ void ParameterPanel::createUI()
     };
     // Add reset button
     QGridLayout* gridLayout = new QGridLayout(paramGroup);
+    paramGroup->setLayout(gridLayout);
     int row = 0;
 
     // Create sliders and labels for each parameter
@@ -124,11 +125,19 @@ void ParameterPanel::createUI()
     }
 
     // Set column stretches
-    gridLayout->setColumnStretch(2, 1); // Make slider take most spacen
+    gridLayout->setColumnStretch(0, 1);  // Give some stretch to label column
+    gridLayout->setColumnStretch(2, 3);  // Make slider take most space
     
     m_resetButton = new QPushButton("Reset to Defaults");
+    m_resetSimulationButton = new QPushButton("Reset Simulation");
+
+    // Create a button layout
+    QHBoxLayout* buttonLayout = new QHBoxLayout();
+    buttonLayout->addWidget(m_resetButton);
+    buttonLayout->addWidget(m_resetSimulationButton);
+
     mainLayout->addWidget(paramGroup);
-    mainLayout->addWidget(m_resetButton);
+    mainLayout->addLayout(buttonLayout);
     
     // Set layout margins
     mainLayout->setContentsMargins(5, 5, 5, 5);
@@ -141,6 +150,7 @@ void ParameterPanel::setupConnections()
 {
     // Connect reset button
     connect(m_resetButton, &QPushButton::clicked, this, &ParameterPanel::resetToDefaults);
+    connect(m_resetSimulationButton, &QPushButton::clicked, this, &ParameterPanel::resetSimulation);
     
     // Connect sliders
     for (auto& [key, param] : m_parameters) {
@@ -209,4 +219,13 @@ float ParameterPanel::sliderToParam(int sliderValue, float minValue, float maxVa
 int ParameterPanel::paramToSlider(float paramValue, float minValue, float maxValue)
 {
     return static_cast<int>((paramValue - minValue) / (maxValue - minValue) * 1000.0f);
+}
+
+void ParameterPanel::resetSimulation()
+{
+    // First reset parameters to defaults
+    resetToDefaults();
+    
+    // Then tell the simulation to reinitialize
+    m_simulation->reinitialize();
 }

@@ -334,3 +334,16 @@ void Simulation::updateKernelCoefficients() {
     WspikyGradCoeff = 45.f / (M_PI * pow(h, 6));
     WviscosityLaplacianCoeff = 45.f / (M_PI * pow(h, 6));
 }
+
+void Simulation::reinitialize()
+{
+    // Clear existing particles
+    for (auto particle : m_particles) {
+        delete particle;
+    }
+    m_particles.clear();
+    m_positions.clear();
+    
+    // Reinitialize simulation
+    init();
+}
