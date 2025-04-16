@@ -13,7 +13,7 @@ struct Fluid {
     double gasConstant;
     float colorI; // interface tension color
     float colorS; // surface tension color
-
+    int numParticles;
 };
 
 struct Particle {
@@ -73,7 +73,8 @@ private:
 
     std::vector<Particle *> m_particles;
     std::vector<Fluid*> m_fluids;
-    PointCloud m_pointcloud;
+    PointCloud m_pointcloud1;
+    PointCloud m_pointcloud2;
 
     Shape m_ground;
     void initGround();

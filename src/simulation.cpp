@@ -24,7 +24,8 @@ Simulation::Simulation(QSettings& settings) :
                     settings.value("Parameters/gravity_y").toFloat(),
                     settings.value("Parameters/gravity_z").toFloat())),
     h(settings.value("Parameters/smoothingLength").toFloat()),
-    m_pointcloud(20)
+    m_pointcloud1(20),
+    m_pointcloud2(20)
 {
     // Initialize kernel coefficients
     updateKernelCoefficients();
@@ -74,8 +75,8 @@ void Simulation::init()
 
     // make two fluids
 
-    Fluid* fluid1 = new Fluid{fluid1_mass, fluid1_viscosity, fluid1_idealGasConstant, 0.5, 1};
-    Fluid* fluid2 = new Fluid{fluid2_mass, fluid2_viscosity, fluid2_idealGasConstant, -0.5, 1};
+    Fluid* fluid1 = new Fluid{fluid1_mass, fluid1_viscosity, fluid1_idealGasConstant, 0.5, 1, 0};
+    Fluid* fluid2 = new Fluid{fluid2_mass, fluid2_viscosity, fluid2_idealGasConstant, -0.5, 1, 0};
 
     m_fluids.push_back(fluid1);
     m_fluids.push_back(fluid2);
@@ -111,15 +112,11 @@ void Simulation::init()
         m_particles.push_back(newParticle);
     }
 
-    std::vector<Vector3d> positions;
+    m_fluids[0]->numParticles = fluid1Positions.size();
+    m_fluids[1]->numParticles = fluid2Positions.size();
 
-    for (int i = 0; i < m_particles.size(); i++) {
-
-        positions.push_back(m_particles[i]->position);
-
-    }
-
-    m_pointcloud.init(positions);
+    m_pointcloud1.init(fluid1Positions);
+    m_pointcloud2.init(fluid2Positions);
 
     initGround();
     initBox();
@@ -181,22 +178,31 @@ void Simulation::update(double seconds)
         m_particles[i]->pressure = calculatePressure(i, m_particles[i]->density, m_particles[i]->restDensity);
     }
 
-    std::vector<Vector3d> positions;
+    std::vector<Vector3d> fluid1Positions;
+    std::vector<Vector3d> fluid2Positions;
 
-    for (int i = 0; i < m_particles.size(); i++) {
+    for (int i = 0; i < m_fluids[0]->numParticles; i++) {
 
-        positions.push_back(m_particles[i]->position);
+        fluid1Positions.push_back(m_particles[i]->position);
 
     }
 
-    m_pointcloud.setPoints(positions);
+    for (int i = 0; i < m_fluids[1]->numParticles; i++) {
+
+        fluid2Positions.push_back(m_particles[m_fluids[0]->numParticles + i]->position);
+
+    }
+
+    m_pointcloud1.setPoints(fluid1Positions);
+    m_pointcloud2.setPoints(fluid2Positions);
 }
 
 void Simulation::draw(Shader *shader)
 {
     m_shape.draw(shader);
     m_ground.draw(shader);
-    m_pointcloud.draw(shader);
+    m_pointcloud1.draw(shader);
+    m_pointcloud2.draw(shader);
     m_box.draw(shader);
     //m_collider.draw(shader);
 }
