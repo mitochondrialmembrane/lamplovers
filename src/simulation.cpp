@@ -29,6 +29,7 @@ Simulation::Simulation(QSettings& settings) :
 {
     // Initialize kernel coefficients
     updateKernelCoefficients();
+    m_exporter.init("test.abc", 24);
 }
 
 // Simulation::Simulation(QSettings& settings) :
@@ -195,6 +196,8 @@ void Simulation::update(double seconds)
 
     m_pointcloud1.setPoints(fluid1Positions);
     m_pointcloud2.setPoints(fluid2Positions);
+
+    m_exporter.addFrame(fluid1Positions);
 }
 
 void Simulation::draw(Shader *shader)
