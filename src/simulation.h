@@ -6,19 +6,25 @@
 
 class Shader;
 
-struct Particle {
-    Eigen::Vector3d velocity;
-    double mass;
-    double pressure;
-    double density;
+struct Fluid {
 
-    // NEW ATTRIBUTES FOR MULTIPLE FLUIDS
-    double gasConstant;
+    double mass;
     double viscosity;
-    double restDensity;
-    double temperature; // in celsius
+    double gasConstant;
     float colorI; // interface tension color
     float colorS; // surface tension color
+
+};
+
+struct Particle {
+    Eigen::Vector3d position;
+    Eigen::Vector3d velocity;
+    double pressure;
+    double density;
+    double restDensity;
+    double temperature; // in celsius
+
+    Fluid* fluid;
 
 };
 
@@ -35,17 +41,20 @@ public:
 
     // New method to update simulation parameters at runtime
     void updateParameters(
-        float fluid1_density,
-        float fluid1_viscosity,
-        const Eigen::Vector3d& gravity,
-        float h,
-        float idealGasConstant,
-        float surfaceTensionThreshold,
-        float surfaceTensionCoeff
+        float new_fluid1_density,
+        float new_fluid2_density,
+        float new_fluid1_viscosity,
+        float new_fluid2_viscosity,
+        const Eigen::Vector3d& new_gravity,
+        float new_h,
+        float new_fluid1_idealGasConstant,
+        float new_fluid2_idealGasConstant,
+        float new_surfaceTensionThreshold,
+        float new_surfaceTensionCoeff
     );
 
     double density_S(int i);
-    double calculatePressure(double density, double restDensity);
+    double calculatePressure(int i, double density, double restDensity);
     Eigen::Vector3d fPressure(int i);
     Eigen::Vector3d fViscosity(int i);
     Eigen::Vector3d fSurfaceTension(int i);
@@ -62,8 +71,8 @@ private:
     std::vector<Eigen::Vector3d> m_vertices;
     std::vector<Eigen::Vector3i> m_faces;
 
-    std::vector<Eigen::Vector3d> m_positions;
     std::vector<Particle *> m_particles;
+    std::vector<Fluid*> m_fluids;
     PointCloud m_pointcloud;
 
     Shape m_ground;
@@ -72,9 +81,13 @@ private:
 
     // Changed from const to mutable parameters
     float fluid1_density;
+    float fluid2_density;
     float fluid1_viscosity;
+    float fluid2_viscosity;
     float fluid1_mass;
-    float idealGasConstant;
+    float fluid2_mass;
+    float fluid1_idealGasConstant;
+    float fluid2_idealGasConstant;
     float h;
     float Wpoly6Coeff;
     float Wpoly6GradCoeff;

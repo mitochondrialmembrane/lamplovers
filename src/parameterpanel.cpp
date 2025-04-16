@@ -212,10 +212,13 @@ void ParameterPanel::updateSimulationParameters()
     // Update the simulation with new parameter values
     m_simulation->updateParameters(
         paramValues["fluid1_density"],
+        paramValues["fluid2_density"],
         paramValues["fluid1_viscosity"],
+        paramValues["fluid2_viscosity"],
         Eigen::Vector3d(0, paramValues["gravity_y"], 0),
         paramValues["smoothingLength"],
-        paramValues["idealGasConstant"],
+        paramValues["fluid1_idealGasConstant"],
+        paramValues["fluid2_idealGasConstant"],
         paramValues["surfaceTensionThreshold"],
         paramValues["surfaceTensionCoeff"]
     );
