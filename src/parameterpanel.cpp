@@ -23,7 +23,7 @@ void ParameterPanel::createUI()
     // Create main layout
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
     QGroupBox* paramGroup = new QGroupBox("Simulation Parameters");
-    QFormLayout* formLayout = new QFormLayout(paramGroup);
+    // QFormLayout* formLayout = new QFormLayout(paramGroup);
     
     // Define parameters to create sliders for
     m_parameters["fluid1_density"] = {
@@ -125,8 +125,15 @@ void ParameterPanel::createUI()
     }
 
     // Set column stretches
-    gridLayout->setColumnStretch(0, 1);  // Give some stretch to label column
-    gridLayout->setColumnStretch(2, 3);  // Make slider take most space
+    gridLayout->setColumnStretch(0, 2);  // Name column gets more space
+    gridLayout->setColumnStretch(1, 1);  // Min value column gets less space
+    gridLayout->setColumnStretch(2, 4);  // Slider gets most space
+    gridLayout->setColumnStretch(3, 1);  // Max value column gets less space
+    gridLayout->setColumnStretch(4, 1);  // Value label gets less space
+
+    // Set some spacing
+    gridLayout->setHorizontalSpacing(8);
+    gridLayout->setVerticalSpacing(2);
     
     m_resetButton = new QPushButton("Reset to Defaults");
     m_resetSimulationButton = new QPushButton("Reset Simulation");
