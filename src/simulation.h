@@ -50,14 +50,19 @@ public:
         float new_fluid1_idealGasConstant,
         float new_fluid2_idealGasConstant,
         float new_surfaceTensionThreshold,
-        float new_surfaceTensionCoeff
+        float new_surfaceTensionCoeff,
+        float new_interfaceTensionThreshold,
+        float new_interfaceTensionCoeff,
+        float new_diffusionCoeff
     );
 
     double density_S(int i);
+    double calculateTemperatureDiffusionStep(int i);
     double calculatePressure(int i, double density, double restDensity);
     Eigen::Vector3d fPressure(int i);
     Eigen::Vector3d fViscosity(int i);
     Eigen::Vector3d fSurfaceTension(int i);
+    Eigen::Vector3d fInterfaceTension(int i);
     Eigen::Vector3d checkCollision(Eigen::Vector3d pos);
     void evaluateCollisions(int i);
 
@@ -96,8 +101,11 @@ private:
     float WspikyGradCoeff;
     float WviscosityLaplacianCoeff;
     Eigen::Vector3d gravity;
-    double surfaceTensionThreshold;
-    double surfaceTensionCoeff;
+    float surfaceTensionThreshold;
+    float surfaceTensionCoeff;
+    float interfaceTensionThreshold;
+    float interfaceTensionCoeff;
+    float diffusionCoeff;
     
     // Helper method to update kernel coefficients when h changes
     void updateKernelCoefficients();

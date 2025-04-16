@@ -14,40 +14,82 @@ PointCloud::PointCloud(float point_size)
 {
 }
 
-void PointCloud::init(const std::vector<Eigen::Vector3d> &points)
+void PointCloud::init(const std::vector<Point>& points, int i)
 {
+
+    std::vector<Vector3d> positions;
+    std::vector<double> temperatures;
+
+    for (int i = 0; i < points.size(); i++) {
+
+        positions.push_back(points[i].position);
+        temperatures.push_back(points[i].temperature);
+
+    }
+
     glGenBuffers(1, &m_vbo);
     glGenVertexArrays(1, &m_vao);
 
     glBindVertexArray(m_vao);
     glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(double) * points.size() * 3, static_cast<const void *>(points.data()), GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(double) * positions.size() * sizeof(Point), static_cast<const void *>(points.data()), GL_STATIC_DRAW);
 
     // Define vertex attributes
-    glVertexAttribPointer(0, 3, GL_DOUBLE, GL_FALSE, 0, 0);
+    glVertexAttribPointer(0, 3, GL_DOUBLE, GL_FALSE, sizeof(Point), 0);
     glEnableVertexAttribArray(0);
+
+
+    glVertexAttribPointer(
+        1,
+        1, GL_DOUBLE,
+        GL_FALSE,
+        sizeof(Point),
+        (void*)offsetof(Point, temperature)
+        );
+    glEnableVertexAttribArray(1);
 
     glBindVertexArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-    m_points = points;
+    m_positions = positions;
+    m_temperatures = temperatures;
     m_numPoints = points.size();
 
     // Random color
-    m_red = static_cast<float>(rand()) / RAND_MAX;
-    m_blue = static_cast<float>(rand()) / RAND_MAX;
-    m_green = static_cast<float>(rand()) / RAND_MAX;
+    m_red = 0;
+    m_blue = 1 - i;
+    m_green = i;
     m_alpha = 1;
 }
 
-void PointCloud::setPoints(const std::vector<Eigen::Vector3d> &points)
+void PointCloud::setPoints(const std::vector<Point> &points)
 {
     if(points.size() != m_numPoints) {
         std::cerr << "You can't set vertices to a vector that is a different length that what point cloud was inited with" << std::endl;
         return;
     }
+
+    std::vector<Vector3d> positions;
+    std::vector<double> temperatures;
+
+    for (int i = 0; i < points.size(); i++) {
+
+        positions.push_back(points[i].position);
+        temperatures.push_back(points[i].temperature);
+
+    }
+
+    m_positions = positions;
+    m_temperatures = temperatures;
+
+    // for (int i = 0; i < m_temperatures.size(); i++) {
+
+    //     std::cout << m_temperatures[i] << std::endl;
+
+    // }
+
     glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(double) * points.size() * 3, points.data());
+    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(double) * points.size() * 4, points.data());
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 

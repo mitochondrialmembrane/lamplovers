@@ -8,13 +8,20 @@
 
 class Shader;
 
+struct Point {
+
+    Eigen::Vector3d position;
+    double temperature;
+
+};
+
 class PointCloud
 {
 public:
     PointCloud(float point_size);
 
-    void init(const std::vector<Eigen::Vector3d> &points);
-    void setPoints(const std::vector<Eigen::Vector3d> &points);
+    void init(const std::vector<Point> &particles, int i);
+    void setPoints(const std::vector<Point> &points);
 
     void setModelMatrix(const Eigen::Affine3f &model);
 
@@ -32,7 +39,8 @@ private:
     float m_green;
     float m_alpha;
 
-    std::vector<Eigen::Vector3d> m_points;
+    std::vector<Eigen::Vector3d> m_positions;
+    std::vector<double> m_temperatures;
 
     Eigen::Matrix4f m_modelMatrix;
 };

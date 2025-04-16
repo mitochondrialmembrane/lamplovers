@@ -4,6 +4,7 @@
 #include <QFormLayout>
 #include <QDoubleSpinBox>
 #include <QDebug>
+#include <iostream>
 
 ParameterPanel::ParameterPanel(QSettings& settings, Simulation* simulation, QWidget* parent)
     : QWidget(parent)
@@ -27,20 +28,38 @@ void ParameterPanel::createUI()
     
     // Define parameters to create sliders for
     m_parameters["fluid1_density"] = {
-        "fluid1_density", 
-        "Fluid Density", 
+        "fluid1_density",
+        "Fluid 1 Density",
         "Controls how densely packed fluid particles are. Higher values create heavier fluid.",
-        500.0f, 2000.0f, 
+        200.0f, 4000.0f,
         m_settings.value("Parameters/fluid1_density", 1000.0f).toFloat(), 
+        nullptr, nullptr
+    };
+
+    m_parameters["fluid2_density"] = {
+        "fluid2_density",
+        "Fluid 2 Density",
+        "Controls how densely packed fluid particles are. Higher values create heavier fluid.",
+        200.0f, 4000.0f,
+        m_settings.value("Parameters/fluid2_density", 2000.0f).toFloat(),
         nullptr, nullptr
     };
 
     m_parameters["fluid1_viscosity"] = {
         "fluid1_viscosity", 
-        "Fluid Viscosity", 
+        "Fluid 1 Viscosity",
         "Controls how thick/sticky the fluid is. Higher values create more honey-like fluid.",
-        1.0f, 20.0f, 
-        m_settings.value("Parameters/fluid1_viscosity", 9.0f).toFloat(), 
+        1.0f, 100.0f,
+        m_settings.value("Parameters/fluid1_viscosity", 40.0f).toFloat(),
+        nullptr, nullptr
+    };
+
+    m_parameters["fluid2_viscosity"] = {
+        "fluid2_viscosity",
+        "Fluid 2 Viscosity",
+        "Controls how thick/sticky the fluid is. Higher values create more honey-like fluid.",
+        1.0f, 100.0f,
+        m_settings.value("Parameters/fluid2_viscosity", 40.0f).toFloat(),
         nullptr, nullptr
     };
 
@@ -62,12 +81,21 @@ void ParameterPanel::createUI()
         nullptr, nullptr
     };
 
-    m_parameters["idealGasConstant"] = {
-        "idealGasConstant", 
-        "Gas Constant", 
+    m_parameters["fluid1_idealGasConstant"] = {
+        "fluid1_idealGasConstant",
+        "Fluid 1 Gas Constant",
         "Controls pressure response. Higher values create more repulsive force between particles.",
         10.0f, 100.0f, 
-        m_settings.value("Parameters/idealGasConstant", 40.0f).toFloat(), 
+        m_settings.value("Parameters/fluid1_idealGasConstant", 40.0f).toFloat(),
+        nullptr, nullptr
+    };
+
+    m_parameters["fluid2_idealGasConstant"] = {
+        "fluid2_idealGasConstant",
+        "Fluid 2 Gas Constant",
+        "Controls pressure response. Higher values create more repulsive force between particles.",
+        10.0f, 100.0f,
+        m_settings.value("Parameters/fluid2_idealGasConstant", 40.0f).toFloat(),
         nullptr, nullptr
     };
 
@@ -88,6 +116,35 @@ void ParameterPanel::createUI()
         m_settings.value("Parameters/surfaceTensionCoeff", 20.0f).toFloat(), 
         nullptr, nullptr
     };
+
+    m_parameters["interfaceTensionThreshold"] = {
+        "interfaceTensionThreshold",
+        "Interface Tension Threshold",
+        "Controls when interface tension is applied. Higher values create less separation between fluids",
+        0.1f, 2.0f,
+        m_settings.value("Parameters/interfaceTensionThreshold", 0.5f).toFloat(),
+        nullptr, nullptr
+    };
+
+    m_parameters["interfaceTensionCoeff"] = {
+        "interfaceTensionCoeff",
+        "Interface Tension Coefficient",
+        "Controls the strength of interface tension. Higher values cause more separation between fluids.",
+        0.0f, 200.0f,
+        m_settings.value("Parameters/interfaceTensionCoeff", 20.0f).toFloat(),
+        nullptr, nullptr
+    };
+
+    m_parameters["diffusionCoeff"] = {
+        "diffusionCoeff",
+        "Diffusion Coefficient",
+        "Controls the strength of diffusion. Higher values cause temperature to diffuse faster.",
+        0.0f, 0.01f,
+        m_settings.value("Parameters/interfaceTensionCoeff", 0.0001f).toFloat(),
+        nullptr, nullptr
+    };
+
+
 
     // Add reset button
     QGridLayout* gridLayout = new QGridLayout(paramGroup);
@@ -207,6 +264,8 @@ void ParameterPanel::updateSimulationParameters()
     for (const auto& [key, param] : m_parameters) {
         float value = sliderToParam(param.slider->value(), param.minValue, param.maxValue);
         paramValues[param.name] = value;
+        std::cout << param.name.toStdString() << std::endl;
+        std::cout << value << std::endl;
     }
     
     // Update the simulation with new parameter values
@@ -220,7 +279,10 @@ void ParameterPanel::updateSimulationParameters()
         paramValues["fluid1_idealGasConstant"],
         paramValues["fluid2_idealGasConstant"],
         paramValues["surfaceTensionThreshold"],
-        paramValues["surfaceTensionCoeff"]
+        paramValues["surfaceTensionCoeff"],
+        paramValues["interfaceTensionThreshold"],
+        paramValues["interfaceTensionCoeff"],
+        paramValues["diffusionCoeff"]
     );
 }
 
@@ -237,7 +299,7 @@ int ParameterPanel::paramToSlider(float paramValue, float minValue, float maxVal
 void ParameterPanel::resetSimulation()
 {
     // First reset parameters to defaults
-    resetToDefaults();
+    // resetToDefaults();
     
     // Then tell the simulation to reinitialize
     m_simulation->reinitialize();

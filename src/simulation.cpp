@@ -15,11 +15,14 @@ Simulation::Simulation(QSettings& settings) :
     fluid1_viscosity(settings.value("Parameters/fluid1_viscosity").toFloat()),
     fluid2_viscosity(settings.value("Parameters/fluid2_viscosity").toFloat()),
     fluid1_mass(1),
-    fluid2_mass(1),
+    fluid2_mass(2),
     fluid1_idealGasConstant(settings.value("Parameters/fluid1_idealGasConstant").toFloat()),
     fluid2_idealGasConstant(settings.value("Parameters/fluid2_idealGasConstant").toFloat()),
     surfaceTensionThreshold(settings.value("Parameters/surfaceTensionThreshold").toFloat()),
     surfaceTensionCoeff(settings.value("Parameters/surfaceTensionCoeff").toFloat()),
+    interfaceTensionThreshold(settings.value("Parameters/interfaceTensionThreshold").toFloat()),
+    interfaceTensionCoeff(settings.value("Parameters/interfaceTensionCoeff").toFloat()),
+    diffusionCoeff(settings.value("Parameters/diffusionCoeff").toFloat()),
     gravity(Vector3d(settings.value("Parameters/gravity_x").toFloat(),
                     settings.value("Parameters/gravity_y").toFloat(),
                     settings.value("Parameters/gravity_z").toFloat())),
@@ -87,36 +90,62 @@ void Simulation::init()
     std::vector<Vector3d> fluid2Positions;
 
     for (int i = 0; i < 10; i++) {
-        for (int j = 0; j < 10; j++) {
+        for (int j = 0; j < 8; j++) {
             for (int k = 0; k < 5; k++) {
-               fluid1Positions.push_back(Vector3d(0.1 * i + 0.6, 0.1 * j, 0.1 * k - 0.2));
+                fluid1Positions.push_back(Vector3d(0.1 * i - 0.5, 0.03 * j + 0.5, 0.1 * k - 0.2));
             }
         }
     }
 
     for (int i = 0; i < 10; i++) {
-        for (int j = 0; j < 10; j++) {
+        for (int j = 0; j < 3; j++) {
             for (int k = 0; k < 5; k++) {
-                fluid2Positions.push_back(Vector3d(0.1 * i - 1.6, 0.1 * j, 0.1 * k - 0.2));
+                fluid2Positions.push_back(Vector3d(0.1 * i - 0.5, 0.1 * j, 0.1 * k - 0.2));
             }
         }
     }
 
+    // for (int i = 0; i < 10; i++) {
+    //     for (int j = 0; j < 10; j++) {
+    //         for (int k = 0; k < 5; k++) {
+    //            fluid1Positions.push_back(Vector3d(0.1 * i + 0.6, 0.1 * j, 0.1 * k - 0.2));
+    //         }
+    //     }
+    // }
+
+    // for (int i = 0; i < 10; i++) {
+    //     for (int j = 0; j < 10; j++) {
+    //         for (int k = 0; k < 5; k++) {
+    //             fluid2Positions.push_back(Vector3d(0.1 * i - 1.5, 0.1 * j, 0.1 * k - 0.2));
+    //         }
+    //     }
+    // }
+
+    std::vector<Point> fluid1Points;
+    std::vector<Point> fluid2Points;
+
     for (int i = 0; i < fluid1Positions.size(); i++) {
-        Particle* newParticle = new Particle{fluid1Positions[i], Vector3d(0), 0, fluid1_density, fluid1_density, 300, fluid1};
+        Particle* newParticle = new Particle{fluid1Positions[i], Vector3d(0, 0, 0), 0, fluid1_density, fluid1_density, 300, fluid1};
+
         m_particles.push_back(newParticle);
+
+        fluid1Points.push_back(Point{fluid1Positions[i], 300});
     }
 
     for (int i = 0; i < fluid2Positions.size(); i++) {
-        Particle* newParticle = new Particle{fluid2Positions[i], Vector3d(0), 0, fluid2_density, fluid2_density, 300, fluid2};
+        Particle* newParticle = new Particle{fluid2Positions[i], Vector3d(0, 0, 0), 0, fluid2_density, fluid2_density, 300, fluid2};
         m_particles.push_back(newParticle);
+
+        fluid2Points.push_back(Point{fluid2Positions[i], 300});
     }
 
     m_fluids[0]->numParticles = fluid1Positions.size();
     m_fluids[1]->numParticles = fluid2Positions.size();
 
-    m_pointcloud1.init(fluid1Positions);
-    m_pointcloud2.init(fluid2Positions);
+
+
+    m_pointcloud1.init(fluid1Points, 0);
+    m_pointcloud2.init(fluid2Points, 1);
 
     initGround();
     initBox();
@@ -143,6 +172,55 @@ void Simulation::update(double seconds)
 
     seconds = 0.01;
 
+    // Slowly heat the bottom + cool the top
+
+    for (int i = 0; i < m_particles.size(); i++) {
+
+        if (m_particles[i]->position[1] < 0.1) {
+
+                m_particles[i]->temperature += 0.1;
+
+            }
+
+        if (m_particles[i]->position[1] > 0.9) {
+
+                m_particles[i]->temperature -= 0.1;
+
+            }
+
+    }
+
+    // Heat equation for diffusion using Euler
+
+    float TEMPERATURE_DENSITY_CONSTANT = 600000;
+
+    std::vector<double> deltaTValues;
+
+    for (int i = 0; i < m_particles.size(); i++) {
+
+        double deltaT = calculateTemperatureDiffusionStep(i);
+
+        deltaTValues.push_back(deltaT);
+
+    }
+
+    for (int i = 0; i < m_particles.size(); i++) {
+
+        m_particles[i]->temperature += deltaTValues[i] * seconds;
+
+    }
+
+    // Only liquid 2 (on the bottom) is temperature dependent?
+
+    for (int i = m_fluids[0]->numParticles; i < m_particles.size(); i++) {
+
+        m_particles[i]->restDensity = TEMPERATURE_DENSITY_CONSTANT / m_particles[i]->temperature;
+
+    }
+
+
+
+
     std::vector<Vector3d> accelerations;
     accelerations.resize(m_particles.size());
     for (int i = 0; i < m_particles.size(); i++) {
@@ -164,7 +242,7 @@ void Simulation::update(double seconds)
 
     for (int i = 0; i < m_particles.size(); i++) {
 
-        newAccelerations[i] = (fPressure(i) + fViscosity(i) + fSurfaceTension(i)) / m_particles[i]->density + gravity; // Update acceleration
+        newAccelerations[i] = (fPressure(i) + fViscosity(i) + fSurfaceTension(i) + fInterfaceTension(i)) / m_particles[i]->density + gravity; // Update acceleration
     }
 
     for (int i = 0; i < m_particles.size(); i++) {
@@ -178,23 +256,23 @@ void Simulation::update(double seconds)
         m_particles[i]->pressure = calculatePressure(i, m_particles[i]->density, m_particles[i]->restDensity);
     }
 
-    std::vector<Vector3d> fluid1Positions;
-    std::vector<Vector3d> fluid2Positions;
+    std::vector<Point> fluid1Points;
+    std::vector<Point> fluid2Points;
 
     for (int i = 0; i < m_fluids[0]->numParticles; i++) {
 
-        fluid1Positions.push_back(m_particles[i]->position);
+        fluid1Points.push_back(Point{m_particles[i]->position, m_particles[i]->temperature});
 
     }
 
     for (int i = 0; i < m_fluids[1]->numParticles; i++) {
 
-        fluid2Positions.push_back(m_particles[m_fluids[0]->numParticles + i]->position);
+        fluid2Points.push_back(Point{m_particles[m_fluids[0]->numParticles + i]->position, m_particles[m_fluids[0]->numParticles + i]->temperature});
 
     }
 
-    m_pointcloud1.setPoints(fluid1Positions);
-    m_pointcloud2.setPoints(fluid2Positions);
+    m_pointcloud1.setPoints(fluid1Points);
+    m_pointcloud2.setPoints(fluid2Points);
 }
 
 void Simulation::draw(Shader *shader)
@@ -259,6 +337,32 @@ double Simulation::density_S(int i) {
         }
     }
     return out;
+}
+
+double Simulation::calculateTemperatureDiffusionStep(int i) {
+
+    Particle *particleI = m_particles[i];
+
+    double out = 0;
+
+    for (int j = 0; j < m_particles.size(); j++) {
+
+        Particle *particleJ = m_particles[j];
+        Vector3d r = particleI->position - particleJ->position;
+        double r_squaredNorm = r.squaredNorm() + 0.00001;
+        double h_squared = h * h;
+        if (r_squaredNorm < h_squared) {
+
+            double W_Laplacian = Wpoly6LaplacianCoeff * (h_squared - r_squaredNorm) * (r_squaredNorm - 0.75 * (h_squared - r_squaredNorm));
+
+            out += diffusionCoeff * (particleJ->fluid->mass / particleJ->density * W_Laplacian) * (particleJ->temperature - particleI->temperature);
+
+        }
+
+    }
+
+    return out;
+
 }
 
 double Simulation::calculatePressure(int i, double density, double restDensity) {
@@ -329,6 +433,36 @@ Vector3d Simulation::fSurfaceTension(int i) {
     return (-surfaceTensionCoeff * C_S_Laplacian) * normal.normalized();
 }
 
+Vector3d Simulation::fInterfaceTension(int i) {
+    Vector3d normal(0,0,0);
+    for (int j = 0; j < m_particles.size(); j++) {
+        // if (i == j) continue;
+        Particle *particleJ = m_particles[j];
+        Vector3d r = m_particles[i]->position - m_particles[j]->position;
+        double r_norm = r.norm() + 0.00001;
+        if (r_norm < h) {
+            Vector3d W_Grad = (-Wpoly6GradCoeff * pow((h - r_norm), 2)) * r;
+            normal += particleJ->fluid->colorI * (particleJ->fluid->mass / particleJ->density) * W_Grad;
+        }
+    }
+    // std::cout << normal.norm() << std::endl;
+    if (normal.norm() < interfaceTensionThreshold) return Vector3d(0,0,0);
+
+    double C_I_Laplacian = 0;
+    for (int j = 0; j < m_particles.size(); j++) {
+        // if (i == j) continue;
+        Particle *particleJ = m_particles[j];
+        Vector3d r = m_particles[i]->position - m_particles[j]->position;
+        double r_squaredNorm = r.squaredNorm() + 0.00001;
+        double h_squared = h * h;
+        if (r_squaredNorm < h_squared) {
+            double W_Laplacian = Wpoly6LaplacianCoeff * (h_squared - r_squaredNorm) * (r_squaredNorm - 0.75 * (h_squared - r_squaredNorm));
+            C_I_Laplacian += particleJ->fluid->colorI * (particleJ->fluid->mass / particleJ->density) * W_Laplacian;
+        }
+    }
+    return (-interfaceTensionCoeff * C_I_Laplacian) * normal.normalized();
+}
+
 void Simulation::evaluateCollisions(int i) {
     Vector3d displacement;
     if ((displacement = checkCollision(m_particles[i]->position)) != Vector3d(0,0,0)) {
@@ -339,9 +473,13 @@ void Simulation::evaluateCollisions(int i) {
 }
 
 Vector3d Simulation::checkCollision(Vector3d pos) {
-    float wallX = 1.5;
+    // float wallX = 1.5;
+    // float wallZ = 0.2;
+    // float ceiling = 2;
+
+    float wallX = 0.5;
     float wallZ = 0.2;
-    float ceiling = 2;
+    float ceiling = 1;
 
     Vector3d returnVector(0,0,0);
     if (pos[1] < 0) returnVector += Vector3d(0,1,0) * -pos[1];
@@ -363,7 +501,10 @@ void Simulation::updateParameters(
     float new_fluid1_idealGasConstant,
     float new_fluid2_idealGasConstant,
     float new_surfaceTensionThreshold,
-    float new_surfaceTensionCoeff
+    float new_surfaceTensionCoeff,
+    float new_interfaceTensionThreshold,
+    float new_interfaceTensionCoeff,
+    float new_diffusionCoeff
 ) {
     // Update parameters
     fluid1_density = new_fluid1_density;
@@ -375,6 +516,9 @@ void Simulation::updateParameters(
     fluid2_idealGasConstant = new_fluid2_idealGasConstant;
     surfaceTensionThreshold = new_surfaceTensionThreshold;
     surfaceTensionCoeff = new_surfaceTensionCoeff;
+    interfaceTensionThreshold = new_interfaceTensionThreshold;
+    interfaceTensionCoeff = new_interfaceTensionCoeff;
+    diffusionCoeff = new_diffusionCoeff;
     
     // Only update h and kernel coefficients if h has changed
     if (h != new_h) {
@@ -384,11 +528,21 @@ void Simulation::updateParameters(
 
     // Update rest density, viscosity
 
-    for (int i = 0; i < m_particles.size(); i++) {
+    for (int i = 0; i < m_fluids[0]->numParticles; i++) {
+
         m_particles[i]->restDensity = fluid1_density;
-        m_particles[i]->fluid->viscosity = fluid1_viscosity;
+
     }
-    
+
+    for (int i = 0; i < m_fluids[1]->numParticles; i++) {
+
+        m_particles[m_fluids[0]->numParticles + i]->restDensity = fluid2_density;
+
+    }
+
+    m_fluids[0]->viscosity = fluid1_viscosity;
+    m_fluids[1]->viscosity = fluid2_viscosity;
+
     // Update the density and pressure of all particles
     for (int i = 0; i < m_particles.size(); i++) {
         m_particles[i]->density = density_S(i);
