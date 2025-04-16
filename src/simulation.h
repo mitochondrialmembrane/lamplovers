@@ -3,6 +3,7 @@
 #include "graphics/shape.h"
 #include <QtCore>
 #include "graphics/pointcloud.h"
+#include "exporter.h"
 
 class Shader;
 
@@ -82,6 +83,7 @@ private:
     PointCloud m_pointcloud2;
 
     Shape m_ground;
+    Exporter m_exporter;
     void initGround();
     void initBox();
 

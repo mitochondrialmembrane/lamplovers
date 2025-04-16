@@ -32,6 +32,7 @@ Simulation::Simulation(QSettings& settings) :
 {
     // Initialize kernel coefficients
     updateKernelCoefficients();
+    m_exporter.init("test.abc", 100);
 }
 
 // Simulation::Simulation(QSettings& settings) :
@@ -258,21 +259,27 @@ void Simulation::update(double seconds)
 
     std::vector<Point> fluid1Points;
     std::vector<Point> fluid2Points;
+    std::vector<Vector3d> fluid1Positions;
+    std::vector<Vector3d> fluid2Positions;
 
     for (int i = 0; i < m_fluids[0]->numParticles; i++) {
 
         fluid1Points.push_back(Point{m_particles[i]->position, m_particles[i]->temperature});
+        fluid1Positions.push_back(m_particles[i]->position);
 
     }
 
     for (int i = 0; i < m_fluids[1]->numParticles; i++) {
 
         fluid2Points.push_back(Point{m_particles[m_fluids[0]->numParticles + i]->position, m_particles[m_fluids[0]->numParticles + i]->temperature});
+        fluid2Positions.push_back(m_particles[m_fluids[0]->numParticles + i]->position);
 
     }
 
     m_pointcloud1.setPoints(fluid1Points);
     m_pointcloud2.setPoints(fluid2Points);
+
+    m_exporter.addFrame(fluid1Positions, fluid2Positions);
 }
 
 void Simulation::draw(Shader *shader)

@@ -22,6 +22,7 @@ find_package(Qt6 REQUIRED COMPONENTS OpenGL)
 find_package(Qt6 REQUIRED COMPONENTS OpenGLWidgets)
 find_package(Qt6 REQUIRED COMPONENTS Gui)
 
+
 # Allows you to include files from within those directories, without prefixing their filepaths
 include_directories(src)
 include_directories(libs)
@@ -52,6 +53,7 @@ add_executable(${PROJECT_NAME}
 
     src/parameterpanel.h
     src/parameterpanel.cpp
+    src/exporter.h src/exporter.cpp
 )
 
 # GLEW: this creates its library and allows you to `#include "GL/glew.h"`
@@ -76,6 +78,9 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 target_include_directories(${PROJECT_NAME} PRIVATE
     Eigen
 )
+
+find_package(Alembic)
+target_link_libraries(${PROJECT_NAME} PRIVATE Alembic::Alembic)
 
 # Specifies other files
 qt6_add_resources(${PROJECT_NAME} "Resources"
