@@ -282,7 +282,7 @@ Vector3d Simulation::fPressure(int i) {
 }
 
 Vector3d Simulation::fViscosity(int i) {
-    Vector3d velocityI = m_particles[i]->velocity;
+    Particle *particleI = m_particles[i];
     Vector3d out(0,0,0);
     for (int j = 0; j < m_particles.size(); j++) {
         // if (i == j) continue;
@@ -291,11 +291,12 @@ Vector3d Simulation::fViscosity(int i) {
         double r_norm = r.norm() + 0.00001;
         if (r_norm < h) {
             double W_Laplacian = WviscosityLaplacianCoeff * (h - r_norm);
-            out += (particleJ->fluid->mass / particleJ->density * W_Laplacian) * (particleJ->velocity - velocityI);
+            double avgViscosity = (particleJ->fluid->viscosity + particleI->fluid->viscosity) / 2.0;
+            out += avgViscosity * (particleJ->fluid->mass / particleJ->density * W_Laplacian) * (particleJ->velocity - particleI->velocity);
         }
     }
 
-    return m_particles[i]->fluid->viscosity * out;
+    return out;
 }
 
 Vector3d Simulation::fSurfaceTension(int i) {
