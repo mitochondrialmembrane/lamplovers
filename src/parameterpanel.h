@@ -41,6 +41,7 @@ private:
     struct ParameterInfo {
         QString name;
         QString displayName;
+        QString tooltip;
         float minValue;
         float maxValue;
         float defaultValue;
