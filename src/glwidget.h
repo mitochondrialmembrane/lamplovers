@@ -22,6 +22,9 @@ public:
     GLWidget(QSettings& settings, QWidget *parent = nullptr);
     ~GLWidget();
 
+    // Add accessor method for simulation
+    Simulation& getSimulation() { return m_sim; }
+
 private:
     static const int FRAMES_TO_AVERAGE = 30;
 

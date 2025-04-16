@@ -24,6 +24,17 @@ public:
 
     void draw(Shader *shader);
 
+    // New method to update simulation parameters at runtime
+    void updateParameters(
+        float fluid1_density,
+        float fluid1_viscosity,
+        const Eigen::Vector3d& gravity,
+        float h,
+        float idealGasConstant,
+        float surfaceTensionThreshold,
+        float surfaceTensionCoeff
+    );
+
     double density_S(int i);
     double calculatePressure(double density);
     Eigen::Vector3d fPressure(int i);
@@ -31,6 +42,8 @@ public:
     Eigen::Vector3d fSurfaceTension(int i);
     Eigen::Vector3d checkCollision(Eigen::Vector3d pos);
     void evaluateCollisions(int i);
+
+    void reinitialize();
 
 private:
     Shape m_shape;
@@ -48,17 +61,21 @@ private:
     void initGround();
     void initBox();
 
-    const float fluid1_density;
-    const float fluid1_viscosity;
-    const float fluid1_mass;
-    const float idealGasConstant;
-    const float h;
-    const float Wpoly6Coeff;
-    const float Wpoly6GradCoeff;
-    const float Wpoly6LaplacianCoeff;
-    const float WspikyGradCoeff;
-    const float WviscosityLaplacianCoeff;
-    const Eigen::Vector3d gravity;
-    const double surfaceTensionThreshold;
-    const double surfaceTensionCoeff;
+    // Changed from const to mutable parameters
+    float fluid1_density;
+    float fluid1_viscosity;
+    float fluid1_mass;
+    float idealGasConstant;
+    float h;
+    float Wpoly6Coeff;
+    float Wpoly6GradCoeff;
+    float Wpoly6LaplacianCoeff;
+    float WspikyGradCoeff;
+    float WviscosityLaplacianCoeff;
+    Eigen::Vector3d gravity;
+    double surfaceTensionThreshold;
+    double surfaceTensionCoeff;
+    
+    // Helper method to update kernel coefficients when h changes
+    void updateKernelCoefficients();
 };
