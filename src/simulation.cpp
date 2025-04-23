@@ -30,9 +30,9 @@ Simulation::Simulation(QSettings& settings) :
     h(settings.value("Parameters/smoothingLength").toFloat()),
     m_pointcloud1(20),
     m_pointcloud2(20),
-    radius (0.5),
-    ceiling (1.5),
-    coneTop (3)
+    radius (0.4),
+    ceiling (1),
+    coneTop (10000)
 {
     // Initialize kernel coefficients
     updateKernelCoefficients();
@@ -93,7 +93,7 @@ void Simulation::init()
 
     std::vector<Vector3d> fluid1Positions;
     std::vector<Vector3d> fluid2Positions;
-    int d = 15; // Change to increase the density of particles
+    int d = 12; // Change to increase the density of particles
 
     #pragma omp parallel
     {
@@ -149,7 +149,7 @@ void Simulation::init()
     std::vector<Point> fluid2Points;
 
     for (int i = 0; i < fluid1Positions.size(); i++) {
-        Particle* newParticle = new Particle{fluid1Positions[i], Vector3d(0, 0, 0), 0, fluid1_density, fluid1_density, 300, fluid1};
+        Particle* newParticle = new Particle{fluid1Positions[i], Vector3d(0, 0, 0), 0, fluid1_density, fluid1_density, 10, fluid1};
 
         m_particles.push_back(newParticle);
 
@@ -157,7 +157,7 @@ void Simulation::init()
     }
 
     for (int i = 0; i < fluid2Positions.size(); i++) {
-        Particle* newParticle = new Particle{fluid2Positions[i], Vector3d(0, 0, 0), 0, fluid2_density, fluid2_density, 300, fluid2};
+        Particle* newParticle = new Particle{fluid2Positions[i], Vector3d(0, 0, 0), 0, fluid2_density, fluid2_density, 10, fluid2};
         m_particles.push_back(newParticle);
 
         fluid2Points.push_back(Point{fluid2Positions[i], 300});
@@ -196,50 +196,6 @@ void Simulation::update(double seconds)
 
     seconds = 0.01;
 
-    // Slowly heat the bottom + cool the top
-
-    for (int i = 0; i < m_particles.size(); i++) {
-
-        if (m_particles[i]->position[1] < 0.1) {
-
-            m_particles[i]->temperature += 0.1;
-
-        }
-
-        if (m_particles[i]->position[1] > 0.9) {
-
-            m_particles[i]->temperature -= 0.1;
-
-        }
-
-    }
-
-    // Heat equation for diffusion using Euler
-
-    float TEMPERATURE_DENSITY_CONSTANT = 600000;
-
-    std::vector<double> deltaTValues;
-    deltaTValues.resize(m_particles.size());
-
-#pragma omp parallel for
-    for (int i = 0; i < m_particles.size(); i++) {
-        double deltaT = calculateTemperatureDiffusionStep(i);
-        deltaTValues[i] = deltaT;
-    }
-
-#pragma omp parallel for
-    for (int i = 0; i < m_particles.size(); i++) {
-        m_particles[i]->temperature += deltaTValues[i] * seconds;
-    }
-
-    // Only liquid 2 (on the bottom) is temperature dependent?
-
-    for (int i = m_fluids[0]->numParticles; i < m_particles.size(); i++) {
-
-        m_particles[i]->restDensity = TEMPERATURE_DENSITY_CONSTANT / m_particles[i]->temperature;
-
-    }
-
     std::vector<Vector3d> accelerations;
     accelerations.resize(m_particles.size());
 
@@ -277,6 +233,71 @@ void Simulation::update(double seconds)
         m_particles[i]->density = density_S(i);
         m_particles[i]->pressure = calculatePressure(i, m_particles[i]->density, m_particles[i]->restDensity);
     }
+
+    // Slowly heat the bottom + cool the top
+
+    for (int i = 0; i < m_particles.size(); i++) {
+
+        if (m_particles[i]->position[1] < 0.3) {
+
+            m_particles[i]->temperature = fmin(m_particles[i]->temperature + 0.1, 50);
+
+        }
+
+        if (m_particles[i]->position[1] > 0.7) {
+
+            m_particles[i]->temperature = fmax(m_particles[i]->temperature - 0.1, 1);
+
+        }
+
+    }
+
+    // TEMPERATURE DIFFUSION
+
+    // Heat equation for diffusion using Euler
+
+    float TEMPERATURE_DENSITY_CONSTANT = 10000;
+
+    std::vector<double> deltaTValues;
+    deltaTValues.resize(m_particles.size());
+
+#pragma omp parallel for
+    for (int i = 0; i < m_particles.size(); i++) {
+        double deltaT = calculateTemperatureDiffusionStep(i);
+        deltaTValues[i] = deltaT;
+    }
+
+#pragma omp parallel for
+    for (int i = 0; i < m_particles.size(); i++) {
+        m_particles[i]->temperature += deltaTValues[i] * seconds;
+
+        if (m_particles[i]->temperature < 1) {
+
+            m_particles[i]->temperature = 1;
+
+        }
+
+        if (m_particles[i]->temperature > 50) {
+
+            m_particles[i]->temperature = 50;
+
+        }
+
+
+
+    }
+
+    // Only liquid 2 (on the bottom) is temperature dependent?
+
+    for (int i = m_fluids[0]->numParticles; i < m_particles.size(); i++) {
+
+        m_particles[i]->restDensity = TEMPERATURE_DENSITY_CONSTANT / m_particles[i]->temperature;
+        std::cout << m_particles[i]->restDensity << " " << m_particles[i]->density << std::endl;
+
+    }
+
+
+    // Export positions to point cloud and exporter
 
     std::vector<Point> fluid1Points;
     std::vector<Point> fluid2Points;
@@ -503,7 +524,7 @@ void Simulation::evaluateCollisions(int i) {
     if ((displacement = checkCollision(m_particles[i]->position)) != Vector3d(0,0,0)) {
         m_particles[i]->position += displacement;
         displacement.normalize();
-        m_particles[i]->velocity -= 1.7 * (m_particles[i]->velocity.dot(displacement) * displacement);
+        m_particles[i]->velocity -= 1.2 * (m_particles[i]->velocity.dot(displacement) * displacement);
     }
 }
 

@@ -49,7 +49,7 @@ void ParameterPanel::createUI()
         "fluid1_viscosity", 
         "Fluid 1 Viscosity",
         "Controls how thick/sticky the fluid is. Higher values create more honey-like fluid.",
-        1.0f, 100.0f,
+        1.0f, 1000.0f,
         m_settings.value("Parameters/fluid1_viscosity", 40.0f).toFloat(),
         nullptr, nullptr
     };
@@ -58,7 +58,7 @@ void ParameterPanel::createUI()
         "fluid2_viscosity",
         "Fluid 2 Viscosity",
         "Controls how thick/sticky the fluid is. Higher values create more honey-like fluid.",
-        1.0f, 100.0f,
+        1.0f, 1000.0f,
         m_settings.value("Parameters/fluid2_viscosity", 40.0f).toFloat(),
         nullptr, nullptr
     };
@@ -76,7 +76,7 @@ void ParameterPanel::createUI()
         "smoothingLength", 
         "Smoothing Length", 
         "Controls the radius of influence between particles. Affects simulation stability and detail.",
-        0.05f, 0.3f, 
+        0.05f, 1.0f,
         m_settings.value("Parameters/smoothingLength", 0.15f).toFloat(), 
         nullptr, nullptr
     };
@@ -112,7 +112,7 @@ void ParameterPanel::createUI()
         "surfaceTensionCoeff", 
         "Surface Tension Coefficient", 
         "Controls the strength of surface tension. Higher values create more cohesive fluid surfaces.",
-        5.0f, 50.0f, 
+        5.0f, 1000.0f,
         m_settings.value("Parameters/surfaceTensionCoeff", 20.0f).toFloat(), 
         nullptr, nullptr
     };
@@ -130,7 +130,7 @@ void ParameterPanel::createUI()
         "interfaceTensionCoeff",
         "Interface Tension Coefficient",
         "Controls the strength of interface tension. Higher values cause more separation between fluids.",
-        0.0f, 200.0f,
+        0.0f, 1000.0f,
         m_settings.value("Parameters/interfaceTensionCoeff", 20.0f).toFloat(),
         nullptr, nullptr
     };
