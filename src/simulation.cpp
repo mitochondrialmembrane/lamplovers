@@ -4,6 +4,7 @@
 
 #include <iostream>
 #include <unordered_set>
+#include <omp.h>
 
 using namespace Eigen;
 using namespace SimulationUtils;
@@ -92,17 +93,31 @@ void Simulation::init()
 
     std::vector<Vector3d> fluid1Positions;
     std::vector<Vector3d> fluid2Positions;
-    int d = 15;
+    int d = 15; // Change to increase the density of particles
 
-    for (int i = -radius * d; i < radius * d; i++) {
-        for (int j = -radius * d; j < radius * d; j++) {
-            for (int k = 0; k < ceiling * d; k++) {
-                Vector3d pos((float) i / d, (float) k / d, (float) j / d);
-                if (checkCollision(pos) == Vector3d(0,0,0)) {
-                    if (k > 0.3 * d) fluid1Positions.push_back(pos);
-                    else fluid2Positions.push_back(pos);
+    #pragma omp parallel
+    {
+        std::vector<Vector3d> local_fluid1Positions;
+        std::vector<Vector3d> local_fluid2Positions;
+        
+        #pragma omp for collapse(3)
+        for (int i = -radius * d; i < radius * d; i++) {
+            for (int j = -radius * d; j < radius * d; j++) {
+                for (int k = 0; k < ceiling * d; k++) {
+                    Vector3d pos((float) i / d, (float) k / d, (float) j / d);
+                    if (checkCollision(pos) == Vector3d(0,0,0)) {
+                        if (k > 0.3 * d) local_fluid1Positions.push_back(pos);
+                        else local_fluid2Positions.push_back(pos);
+                    }
                 }
             }
+        }
+        
+        // Merge thread-local results to the shared vectors
+        #pragma omp critical
+        {
+            fluid1Positions.insert(fluid1Positions.end(), local_fluid1Positions.begin(), local_fluid1Positions.end());
+            fluid2Positions.insert(fluid2Positions.end(), local_fluid2Positions.begin(), local_fluid2Positions.end());
         }
     }
     /**
@@ -204,19 +219,17 @@ void Simulation::update(double seconds)
     float TEMPERATURE_DENSITY_CONSTANT = 600000;
 
     std::vector<double> deltaTValues;
+    deltaTValues.resize(m_particles.size());
 
+#pragma omp parallel for
     for (int i = 0; i < m_particles.size(); i++) {
-
         double deltaT = calculateTemperatureDiffusionStep(i);
-
-        deltaTValues.push_back(deltaT);
-
+        deltaTValues[i] = deltaT;
     }
 
+#pragma omp parallel for
     for (int i = 0; i < m_particles.size(); i++) {
-
         m_particles[i]->temperature += deltaTValues[i] * seconds;
-
     }
 
     // Only liquid 2 (on the bottom) is temperature dependent?
@@ -227,28 +240,28 @@ void Simulation::update(double seconds)
 
     }
 
-
-
-
     std::vector<Vector3d> accelerations;
     accelerations.resize(m_particles.size());
+
+#pragma omp parallel for
     for (int i = 0; i < m_particles.size(); i++) {
         accelerations[i] = (fPressure(i) + fViscosity(i)) / m_particles[i]->density + gravity;
     }
 
     std::vector<Vector3d> newAccelerations = accelerations;
+#pragma omp parallel for
     for (int i = 0; i < m_particles.size(); i++) {
-
         // Leapfrog
-
         m_particles[i]->position += m_particles[i]->velocity * seconds + 0.5 * accelerations[i] * seconds * seconds; // Update position
     }
 
+#pragma omp parallel for
     for (int i = 0; i < m_particles.size(); i++) {
         m_particles[i]->density = density_S(i);
         m_particles[i]->pressure = calculatePressure(i, m_particles[i]->density, m_particles[i]->restDensity); // Update density+pressure using new position
     }
 
+#pragma omp parallel for
     for (int i = 0; i < m_particles.size(); i++) {
 
         newAccelerations[i] = (fPressure(i) + fViscosity(i) + fSurfaceTension(i) + fInterfaceTension(i)) / m_particles[i]->density + gravity; // Update acceleration
@@ -344,13 +357,20 @@ double Simulation::density_S(int i) {
     // CHANGE FOR MULTI FLUIDS: Still iterate over all particles?? (Check later)
 
     double out = 0;
+    // Using reduction to safely accumulate the sum in parallel
+    #pragma omp parallel for reduction(+:out)
     for (int j = 0; j < m_particles.size(); j++) {
         // if (i == j) continue; not necessary??
+        //
+        // Each thread calculates contributions from some particles
+        // and adds them to its private copy of 'out'
         double r_squared = (m_particles[i]->position - m_particles[j]->position).squaredNorm() + 0.00001;
         if (r_squared < h * h) {
             out += m_particles[j]->fluid->mass * Wpoly6Coeff * pow((h * h - r_squared), 3);
         }
     }
+
+    // At the end, all private copies are added together into the shared 'out'
     return out;
 }
 
