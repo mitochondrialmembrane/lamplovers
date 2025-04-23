@@ -34,4 +34,7 @@ void main() {
 
     //     fragColor = vec4(red * c * lightColor[0], green * c * lightColor[0], blue * c * lightColor[0], alpha);
     // }
+    else {
+        fragColor = vec4(1,1,1,1);
+    }
 }
