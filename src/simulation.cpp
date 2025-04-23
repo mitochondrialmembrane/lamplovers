@@ -223,12 +223,15 @@ void Simulation::update(double seconds)
         newAccelerations[i] = (fPressure(i) + fViscosity(i) + fSurfaceTension(i) + fInterfaceTension(i)) / m_particles[i]->density + gravity; // Update acceleration
     }
 
+#pragma omp parallel for
     for (int i = 0; i < m_particles.size(); i++) {
 
         m_particles[i]->velocity += 0.5 * (accelerations[i] + newAccelerations[i]) * seconds; // Update velocity using both position and acceleration
         evaluateCollisions(i);
 
     }
+
+#pragma omp parallel for
     for (int i = 0; i < m_particles.size(); i++) {
         m_particles[i]->density = density_S(i);
         m_particles[i]->pressure = calculatePressure(i, m_particles[i]->density, m_particles[i]->restDensity);
