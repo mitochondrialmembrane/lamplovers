@@ -55,7 +55,7 @@ public:
         float new_interfaceTensionThreshold,
         float new_interfaceTensionCoeff,
         float new_diffusionCoeff
-    );
+        );
 
     double density_S(int i);
     double calculateTemperatureDiffusionStep(int i);
@@ -81,6 +81,9 @@ private:
     std::vector<Fluid*> m_fluids;
     PointCloud m_pointcloud1;
     PointCloud m_pointcloud2;
+    float radius;
+    float ceiling;
+    float coneTop;
 
     Shape m_ground;
     Exporter m_exporter;
@@ -108,7 +111,7 @@ private:
     float interfaceTensionThreshold;
     float interfaceTensionCoeff;
     float diffusionCoeff;
-    
+
     // Helper method to update kernel coefficients when h changes
     void updateKernelCoefficients();
 };

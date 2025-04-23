@@ -24,11 +24,14 @@ Simulation::Simulation(QSettings& settings) :
     interfaceTensionCoeff(settings.value("Parameters/interfaceTensionCoeff").toFloat()),
     diffusionCoeff(settings.value("Parameters/diffusionCoeff").toFloat()),
     gravity(Vector3d(settings.value("Parameters/gravity_x").toFloat(),
-                    settings.value("Parameters/gravity_y").toFloat(),
-                    settings.value("Parameters/gravity_z").toFloat())),
+                     settings.value("Parameters/gravity_y").toFloat(),
+                     settings.value("Parameters/gravity_z").toFloat())),
     h(settings.value("Parameters/smoothingLength").toFloat()),
     m_pointcloud1(20),
-    m_pointcloud2(20)
+    m_pointcloud2(20),
+    radius (0.5),
+    ceiling (1.5),
+    coneTop (3)
 {
     // Initialize kernel coefficients
     updateKernelCoefficients();
@@ -89,22 +92,27 @@ void Simulation::init()
 
     std::vector<Vector3d> fluid1Positions;
     std::vector<Vector3d> fluid2Positions;
+    int d = 15;
 
-    for (int i = 0; i < 10; i++) {
-        for (int j = 0; j < 8; j++) {
-            for (int k = 0; k < 5; k++) {
-                fluid1Positions.push_back(Vector3d(0.1 * i - 0.5, 0.03 * j + 0.5, 0.1 * k - 0.2));
+    for (int i = -radius * d; i < radius * d; i++) {
+        for (int j = -radius * d; j < radius * d; j++) {
+            for (int k = 0; k < ceiling * d; k++) {
+                Vector3d pos((float) i / d, (float) k / d, (float) j / d);
+                if (checkCollision(pos) == Vector3d(0,0,0)) {
+                    if (k > 0.3 * d) fluid1Positions.push_back(pos);
+                    else fluid2Positions.push_back(pos);
+                }
             }
         }
     }
-
+    /**
     for (int i = 0; i < 10; i++) {
         for (int j = 0; j < 3; j++) {
             for (int k = 0; k < 5; k++) {
                 fluid2Positions.push_back(Vector3d(0.1 * i - 0.5, 0.1 * j, 0.1 * k - 0.2));
             }
         }
-    }
+    }**/
 
     // for (int i = 0; i < 10; i++) {
     //     for (int j = 0; j < 10; j++) {
@@ -179,15 +187,15 @@ void Simulation::update(double seconds)
 
         if (m_particles[i]->position[1] < 0.1) {
 
-                m_particles[i]->temperature += 0.1;
+            m_particles[i]->temperature += 0.1;
 
-            }
+        }
 
         if (m_particles[i]->position[1] > 0.9) {
 
-                m_particles[i]->temperature -= 0.1;
+            m_particles[i]->temperature -= 0.1;
 
-            }
+        }
 
     }
 
@@ -484,7 +492,7 @@ Vector3d Simulation::checkCollision(Vector3d pos) {
     // float wallZ = 0.2;
     // float ceiling = 2;
 
-    float wallX = 0.5;
+    /**float wallX = 0.5;
     float wallZ = 0.2;
     float ceiling = 1;
 
@@ -495,8 +503,18 @@ Vector3d Simulation::checkCollision(Vector3d pos) {
     if (pos[0] < -wallX) returnVector += Vector3d(1,0,0) * (-wallX - pos[0]);
     if (pos[2] > wallZ) returnVector += Vector3d(0,0,-1) * (pos[2] - wallZ);
     if (pos[2] < -wallZ) returnVector += Vector3d(0,0,1) * (-wallZ - pos[2]);
+    return returnVector;**/
+
+    float r = sqrt(pos[0] * pos[0] + pos[2] * pos[2]);
+    float radiusAtY = (coneTop - pos[1]) / coneTop * radius;
+    Vector3d returnVector(0,0,0);
+    if (pos[1] < 0) returnVector += Vector3d(0,1,0) * -pos[1];
+    if (pos[1] > ceiling) returnVector += Vector3d(0,-1,0) * (pos[1] - ceiling);
+    if (r > radiusAtY) returnVector += (Vector3d(-pos[0], 0, -pos[2]).normalized() * coneTop - Vector3d(0, -radius, 0)).normalized() * (r - radiusAtY);
     return returnVector;
 }
+
+
 
 void Simulation::updateParameters(
     float new_fluid1_density,
@@ -512,7 +530,7 @@ void Simulation::updateParameters(
     float new_interfaceTensionThreshold,
     float new_interfaceTensionCoeff,
     float new_diffusionCoeff
-) {
+    ) {
     // Update parameters
     fluid1_density = new_fluid1_density;
     fluid1_viscosity = new_fluid1_viscosity;
@@ -526,7 +544,7 @@ void Simulation::updateParameters(
     interfaceTensionThreshold = new_interfaceTensionThreshold;
     interfaceTensionCoeff = new_interfaceTensionCoeff;
     diffusionCoeff = new_diffusionCoeff;
-    
+
     // Only update h and kernel coefficients if h has changed
     if (h != new_h) {
         h = new_h;
@@ -573,7 +591,7 @@ void Simulation::reinitialize()
         delete particle;
     }
     m_particles.clear();
-    
+
     // Reinitialize simulation
     init();
 }
