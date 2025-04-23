@@ -126,3 +126,8 @@ find_package(OpenMP)
 if(OpenMP_CXX_FOUND)
     target_link_libraries(${PROJECT_NAME} PUBLIC OpenMP::OpenMP_CXX)
 endif()
+
+# Find Alembic package
+find_package(Alembic REQUIRED)
+include_directories(${ALEMBIC_INCLUDE_DIRS})
+target_link_libraries(lamplovers ${ALEMBIC_LIBRARIES})

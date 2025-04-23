@@ -295,7 +295,7 @@ void Simulation::update(double seconds)
     for (int i = m_fluids[0]->numParticles; i < m_particles.size(); i++) {
 
         m_particles[i]->restDensity = TEMPERATURE_DENSITY_CONSTANT / m_particles[i]->temperature;
-        std::cout << m_particles[i]->restDensity << " " << m_particles[i]->density << std::endl;
+        /*std::cout << m_particles[i]->restDensity << " " << m_particles[i]->density << std::endl;*/
 
     }
 
@@ -522,12 +522,32 @@ Vector3d Simulation::fInterfaceTension(int i) {
     return (-interfaceTensionCoeff * C_I_Laplacian) * normal.normalized();
 }
 
+/*void Simulation::evaluateCollisions(int i) {*/
+/*    Vector3d displacement;*/
+/*    if ((displacement = checkCollision(m_particles[i]->position)) != Vector3d(0,0,0)) {*/
+/*        m_particles[i]->position += displacement;*/
+/*        displacement.normalize();*/
+/*        m_particles[i]->velocity -= 1.2 * (m_particles[i]->velocity.dot(displacement) * displacement);*/
+/*    }*/
+/*}*/
+
 void Simulation::evaluateCollisions(int i) {
-    Vector3d displacement;
-    if ((displacement = checkCollision(m_particles[i]->position)) != Vector3d(0,0,0)) {
+    Vector3d displacement = checkCollision(m_particles[i]->position);
+
+    if (displacement.norm() > 0.0001) {
         m_particles[i]->position += displacement;
-        displacement.normalize();
-        m_particles[i]->velocity -= 1.2 * (m_particles[i]->velocity.dot(displacement) * displacement);
+
+        // Calculate damped reflection with friction
+        float dampingCoeff = 0.7; // Lower than 1.0 to dissipate energy
+        Vector3d normal = displacement.normalized();
+        float vn = m_particles[i]->velocity.dot(normal);
+
+        if (vn < 0) { // Only dampen if moving into the boundary
+            Vector3d vTangent = m_particles[i]->velocity - vn * normal;
+            float friction = 0.1; // Tangential friction coefficient
+
+            m_particles[i]->velocity = vTangent * (1.0f - friction) - dampingCoeff * vn * normal;
+        }
     }
 }
 
@@ -638,4 +658,28 @@ void Simulation::reinitialize()
 
     // Reinitialize simulation
     init();
+}
+
+double Simulation::calculateTimeStep() {
+    double maxVelocity = 0.0;
+    double minDistance = h; // Start with smoothing length
+    
+    // Find maximum velocity and minimum particle distance
+    for (int i = 0; i < m_particles.size(); i++) {
+        double velMag = m_particles[i]->velocity.norm();
+        maxVelocity = std::max(maxVelocity, velMag);
+        
+        // Find nearest neighbor distance (can be optimized with spatial hash)
+        for (int j = i+1; j < m_particles.size(); j++) {
+            double dist = (m_particles[i]->position - m_particles[j]->position).norm();
+            if (dist > 0.0001) minDistance = std::min(minDistance, dist);
+        }
+    }
+    
+    // CFL condition with safety factor
+    double safetyFactor = 0.4;
+    double timeStep = safetyFactor * minDistance / (maxVelocity + 1e-6);
+    
+    // Clamp to reasonable range
+    return std::min(std::max(timeStep, 0.001), 0.01);
 }

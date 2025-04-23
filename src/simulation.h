@@ -114,4 +114,5 @@ private:
 
     // Helper method to update kernel coefficients when h changes
     void updateKernelCoefficients();
+    double calculateTimeStep();
 };
