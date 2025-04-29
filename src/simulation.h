@@ -8,13 +8,17 @@
 class Shader;
 
 struct Fluid {
-
+    std::string name;
     double mass;
     double viscosity;
     double gasConstant;
     float colorI; // interface tension color
     float colorS; // surface tension color
     int numParticles;
+    double density;
+    double restDensity;
+    bool temperatureDependent; // Whether this fluid's density depends on temperature
+    double temperatureConstant;
 };
 
 struct Particle {
@@ -26,37 +30,24 @@ struct Particle {
     double temperature; // in celsius
 
     Fluid* fluid;
-
 };
 
 class Simulation
 {
 public:
     Simulation(QSettings& settings);
+    ~Simulation();
 
     void init();
-
     void update(double seconds);
-
     void draw(Shader *shader);
 
-    // New method to update simulation parameters at runtime
+    // Method to update simulation parameters at runtime
     void updateParameters(
-        float new_fluid1_density,
-        float new_fluid2_density,
-        float new_fluid1_viscosity,
-        float new_fluid2_viscosity,
-        const Eigen::Vector3d& new_gravity,
-        float new_h,
-        float new_fluid1_idealGasConstant,
-        float new_fluid2_idealGasConstant,
-        float new_surfaceTensionThreshold,
-        float new_surfaceTensionCoeff,
-        float new_interfaceTensionThreshold,
-        float new_interfaceTensionCoeff,
-        float new_diffusionCoeff
-        );
+        const std::map<QString, float>& paramValues
+    );
 
+    // Helper methods for simulation
     double density_S(int i);
     double calculateTemperatureDiffusionStep(int i);
     double calculatePressure(int i, double density, double restDensity);
@@ -69,6 +60,12 @@ public:
 
     void reinitialize();
 
+    // Getter for the number of fluids
+    size_t getFluidCount() const { return m_fluids.size(); }
+    
+    // Add new fluid to the simulation
+    void addFluid(const Fluid& fluidProperties);
+
 private:
     Shape m_shape;
     Shape m_box;
@@ -77,42 +74,43 @@ private:
     std::vector<Eigen::Vector3d> m_vertices;
     std::vector<Eigen::Vector3i> m_faces;
 
-    std::vector<Particle *> m_particles;
-    std::vector<Fluid*> m_fluids;
-    PointCloud m_pointcloud1;
-    PointCloud m_pointcloud2;
+    std::vector<Particle*> m_particles;
+    std::vector<int> m_fluidStartIndices;
+    std::vector<std::unique_ptr<Fluid>> m_fluids;
+    std::vector<std::unique_ptr<PointCloud>> m_pointclouds;
     float radius;
     float ceiling;
     float coneTop;
 
     Shape m_ground;
     Exporter m_exporter;
-    void initGround();
-    void initBox();
 
-    // Changed from const to mutable parameters
-    float fluid1_density;
-    float fluid2_density;
-    float fluid1_viscosity;
-    float fluid2_viscosity;
-    float fluid1_mass;
-    float fluid2_mass;
-    float fluid1_idealGasConstant;
-    float fluid2_idealGasConstant;
-    float h;
-    float Wpoly6Coeff;
-    float Wpoly6GradCoeff;
-    float Wpoly6LaplacianCoeff;
-    float WspikyGradCoeff;
-    float WviscosityLaplacianCoeff;
+    void initBox();
+    void initGround();
+    void updateFluidIndices();
+    void initFluidsFromSettings();
+    void createFluidParticles(Fluid* fluid, const Eigen::Vector3d& startPos, const Eigen::Vector3d& dimensions, double spacing);
+
+
+    // Global simulation paramters
     Eigen::Vector3d gravity;
+    float h; // smoothing length
     float surfaceTensionThreshold;
     float surfaceTensionCoeff;
     float interfaceTensionThreshold;
     float interfaceTensionCoeff;
     float diffusionCoeff;
 
-    // Helper method to update kernel coefficients when h changes
+    // Kernel coefficients
+    float Wpoly6Coeff;
+    float Wpoly6GradCoeff;
+    float Wpoly6LaplacianCoeff;
+    float WspikyGradCoeff;
+    float WviscosityLaplacianCoeff;
+
+    // Helper methods
     void updateKernelCoefficients();
     double calculateTimeStep();
+    void loadFluidParameters();
 };
+

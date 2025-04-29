@@ -11,334 +11,284 @@ using namespace SimulationUtils;
 
 Simulation::Simulation(QSettings& settings) :
     _settings(settings),
-    fluid1_density(settings.value("Parameters/fluid1_density").toFloat()),
-    fluid2_density(settings.value("Parameters/fluid2_density").toFloat()),
-    fluid1_viscosity(settings.value("Parameters/fluid1_viscosity").toFloat()),
-    fluid2_viscosity(settings.value("Parameters/fluid2_viscosity").toFloat()),
-    fluid1_mass(1),
-    fluid2_mass(2),
-    fluid1_idealGasConstant(settings.value("Parameters/fluid1_idealGasConstant").toFloat()),
-    fluid2_idealGasConstant(settings.value("Parameters/fluid2_idealGasConstant").toFloat()),
-    surfaceTensionThreshold(settings.value("Parameters/surfaceTensionThreshold").toFloat()),
-    surfaceTensionCoeff(settings.value("Parameters/surfaceTensionCoeff").toFloat()),
-    interfaceTensionThreshold(settings.value("Parameters/interfaceTensionThreshold").toFloat()),
-    interfaceTensionCoeff(settings.value("Parameters/interfaceTensionCoeff").toFloat()),
-    diffusionCoeff(settings.value("Parameters/diffusionCoeff").toFloat()),
-    gravity(Vector3d(settings.value("Parameters/gravity_x").toFloat(),
-                     settings.value("Parameters/gravity_y").toFloat(),
-                     settings.value("Parameters/gravity_z").toFloat())),
-    h(settings.value("Parameters/smoothingLength").toFloat()),
-    m_pointcloud1(20),
-    m_pointcloud2(20),
-    radius (0.4),
-    ceiling (1),
-    coneTop (10000)
+    h(settings.value("Parameters/smoothingLength", 0.15f).toFloat()),
+    surfaceTensionThreshold(settings.value("Parameters/surfaceTensionThreshold", 0.5f).toFloat()),
+    surfaceTensionCoeff(settings.value("Parameters/surfaceTensionCoeff", 20.0f).toFloat()),
+    interfaceTensionThreshold(settings.value("Parameters/interfaceTensionThreshold", 0.5f).toFloat()),
+    interfaceTensionCoeff(settings.value("Parameters/interfaceTensionCoeff", 20.0f).toFloat()),
+    diffusionCoeff(settings.value("Parameters/diffusionCoeff", 0.0001f).toFloat()),
+    gravity(Vector3d(settings.value("Parameters/gravity_x", 0.0f).toFloat(),
+                     settings.value("Parameters/gravity_y", -10.0f).toFloat(),
+                     settings.value("Parameters/gravity_z", 0.0f).toFloat())),
+    radius(0.4),
+    ceiling(1),
+    coneTop(10000)
 {
     // Initialize kernel coefficients
     updateKernelCoefficients();
-    m_exporter.init("test.abc", 100);
+    m_exporter.init("simulation.abc", 100);
+    
+    // Load fluid configurations from settings
+    initFluidsFromSettings();
+
+    // Initialize the fluid indices array with zeros
+    m_fluidStartIndices.resize(m_fluids.size() + 1, 0);
 }
 
-// Simulation::Simulation(QSettings& settings) :
-//     _settings(settings),
-//     fluid1_density(settings.value("Parameters/fluid1_density").toFloat()),
-//     fluid1_viscosity(settings.value("Parameters/fluid1_viscosity").toFloat()),
-//     fluid1_mass(1),
-//     idealGasConstant(settings.value("Parameters/idealGasConstant").toFloat()),
-//     surfaceTensionThreshold(settings.value("Parameters/surfaceTensionThreshold").toFloat()),
-//     surfaceTensionCoeff(settings.value("Parameters/surfaceTensionCoeff").toFloat()),
-//     gravity(Vector3d(settings.value("Parameters/gravity_x").toFloat(),
-//                     settings.value("Parameters/gravity_y").toFloat(),
-//                     settings.value("Parameters/gravity_z").toFloat())),
-//     h(settings.value("Parameters/smoothingLength").toFloat()),
-//
-//     // Kernel coeffs
-//
-//     Wpoly6Coeff(315.f / (M_PI * pow(h, 9) * 64)),
-//     Wpoly6GradCoeff(945.f / (M_PI * pow(h, 9) * 32)),
-//     Wpoly6LaplacianCoeff(945.f / (M_PI * pow(h, 9) * 8)),
-//     WspikyGradCoeff(45.f / (M_PI * pow(h, 6))),
-//     WviscosityLaplacianCoeff(45.f / (M_PI * pow(h, 6))),    // coeff of spiky kernel grad and viscosity kernel laplacian
-//
-//     m_pointcloud(20)
-//
-// {}
+Simulation::~Simulation() {
+    // Clean up particles
+    for (auto particle : m_particles) {
+        delete particle;
+    }
+    m_particles.clear();
+}
 
-void Simulation::init()
-{
-    // STUDENTS: This code loads up the tetrahedral mesh in 'example-meshes/single-tet.mesh'
-    //    (note: your working directory must be set to the root directory of the starter code
-    //    repo for this file to load correctly). You'll probably want to instead have this code
-    //    load up a tet mesh based on e.g. a file path specified with a command line argument.
-    /**if (MeshLoader::loadFaceMesh(":/" + _settings.value("IO/infile").toString().toStdString(), m_vertices, m_faces)) {
-        // STUDENTS: This code computes the surface mesh of the loaded tet mesh, i.e. the faces
-        //    of tetrahedra which are on the exterior surface of the object. Right now, this is
-        //    hard-coded for the single-tet mesh. You'll need to implement surface mesh extraction
-        //    for arbitrary tet meshes. Think about how you can identify which tetrahedron faces
-        //    are surface faces...
-
-        //m_shape.init(m_vertices, faces, m_tets);
-    }**/
-    //m_shape.setModelMatrix(Affine3f(Eigen::Translation3f(0, 2, 0)));
-
-    // make two fluids
-
-    Fluid* fluid1 = new Fluid{fluid1_mass, fluid1_viscosity, fluid1_idealGasConstant, 0.5, 1, 0};
-    Fluid* fluid2 = new Fluid{fluid2_mass, fluid2_viscosity, fluid2_idealGasConstant, -0.5, 1, 0};
-
-    m_fluids.push_back(fluid1);
-    m_fluids.push_back(fluid2);
-
-    // initialize two sets of particles
-
-    std::vector<Vector3d> fluid1Positions;
-    std::vector<Vector3d> fluid2Positions;
-    int d = 12; // Change to increase the density of particles
-
-    #pragma omp parallel
-    {
-        std::vector<Vector3d> local_fluid1Positions;
-        std::vector<Vector3d> local_fluid2Positions;
+void Simulation::initFluidsFromSettings() {
+    // Get the number of fluids from settings
+    int numFluids = _settings.value("Parameters/num_fluids", 2).toInt();
+    
+    // Loop through each fluid and load its parameters
+    for (int i = 0; i < numFluids; i++) {
+        std::unique_ptr<Fluid> fluid = std::make_unique<Fluid>();
         
-        #pragma omp for collapse(3)
-        for (int i = -radius * d; i < radius * d; i++) {
-            for (int j = -radius * d; j < radius * d; j++) {
-                for (int k = 0; k < ceiling * d; k++) {
-                    Vector3d pos((float) i / d, (float) k / d, (float) j / d);
-                    if (checkCollision(pos) == Vector3d(0,0,0)) {
-                        if (k > 0.3 * d) local_fluid1Positions.push_back(pos);
-                        else local_fluid2Positions.push_back(pos);
+        QString prefix = QString("Fluid%1/").arg(i+1);
+        
+        // Load fluid properties
+        fluid->name = _settings.value(prefix + "name", QString("Fluid %1").arg(i+1)).toString().toStdString();
+        fluid->density = _settings.value(prefix + "density", 1000.0f).toFloat();
+        fluid->restDensity = fluid->density; // Initially same as density
+        fluid->viscosity = _settings.value(prefix + "viscosity", 100.0f).toFloat();
+        fluid->mass = _settings.value(prefix + "mass", 1.0f).toFloat();
+        fluid->gasConstant = _settings.value(prefix + "idealGasConstant", 40.0f).toFloat();
+        fluid->colorI = _settings.value(prefix + "colorI", 0.0f).toFloat();
+        fluid->colorS = _settings.value(prefix + "colorS", 1.0f).toFloat();
+        fluid->numParticles = 0; // Will be set during initialization
+        fluid->temperatureDependent = _settings.value(prefix + "temperatureDependent", false).toBool();
+        fluid->temperatureConstant = _settings.value(prefix + "temperatureConstant", 10000.0f).toFloat();
+        
+        // Add the fluid to the simulation
+        m_fluids.push_back(std::move(fluid));
+        
+        // Create a point cloud for this fluid
+        m_pointclouds.push_back(std::make_unique<PointCloud>(20.0f)); // Default point size
+    }
+}
+
+void Simulation::updateFluidIndices() {
+    // Ensure the indices array is the correct size (fluids + 1 for the end index)
+    m_fluidStartIndices.resize(m_fluids.size() + 1, 0);
+    
+    // Calculate starting indices for each fluid for faster access
+    m_fluidStartIndices[0] = 0; // First fluid starts at index 0
+    for (size_t i = 0; i < m_fluids.size(); i++) {
+        m_fluidStartIndices[i+1] = m_fluidStartIndices[i] + m_fluids[i]->numParticles;
+    }
+    
+    // Verify that the last index matches the total particle count
+    if (m_fluidStartIndices.back() != static_cast<int>(m_particles.size())) {
+        std::cerr << "Warning: Fluid indices don't match particle count. Expected " 
+                  << m_particles.size() << " but got " << m_fluidStartIndices.back() << std::endl;
+    }
+}
+
+void Simulation::init() {
+    // Initialize fluids and their particles
+    if (m_fluids.empty()) {
+        std::cerr << "Error: No fluids defined in settings!" << std::endl;
+        return;
+    }
+    
+    // Create two zones for the fluids (can be extended for more complex scenarios)
+    int d = 12; // Density of particles
+    
+    float totalHeight = ceiling * d;
+    float heightPerFluid = totalHeight / m_fluids.size();
+    
+    // Generate particles for each fluid
+    for (size_t fluidIndex = 0; fluidIndex < m_fluids.size(); fluidIndex++) {
+        float startHeight = fluidIndex * heightPerFluid / d;
+        float endHeight = (fluidIndex + 1) * heightPerFluid / d;
+        
+        std::vector<Point> fluidPoints;
+        
+        #pragma omp parallel
+        {
+            std::vector<Vector3d> localPositions;
+            
+            #pragma omp for collapse(3)
+            for (int i = -radius * d; i < radius * d; i++) {
+                for (int j = -radius * d; j < radius * d; j++) {
+                    for (int k = startHeight * d; k < endHeight * d; k++) {
+                        Vector3d pos((float) i / d, (float) k / d, (float) j / d);
+                        if (checkCollision(pos) == Vector3d(0,0,0)) {
+                            localPositions.push_back(pos);
+                        }
                     }
+                }
+            }
+            
+            // Add particles to the main list
+            #pragma omp critical
+            {
+                for (const auto& pos : localPositions) {
+                    Particle* newParticle = new Particle{
+                        pos, 
+                        Vector3d(0, 0, 0), // Initial velocity
+                        0, // Initial pressure
+                        m_fluids[fluidIndex]->density, 
+                        m_fluids[fluidIndex]->restDensity, 
+                        10, // Initial temperature
+                        m_fluids[fluidIndex].get()
+                    };
+                    
+                    m_particles.push_back(newParticle);
+                    fluidPoints.push_back(Point{pos, 10}); // Initial temperature
                 }
             }
         }
         
-        // Merge thread-local results to the shared vectors
-        #pragma omp critical
-        {
-            fluid1Positions.insert(fluid1Positions.end(), local_fluid1Positions.begin(), local_fluid1Positions.end());
-            fluid2Positions.insert(fluid2Positions.end(), local_fluid2Positions.begin(), local_fluid2Positions.end());
-        }
+        // Set the number of particles for this fluid
+        m_fluids[fluidIndex]->numParticles = fluidPoints.size();
+        
+        // Initialize the point cloud for this fluid
+        m_pointclouds[fluidIndex]->init(fluidPoints, fluidIndex % 2); // Alternate colors for now
     }
-    /**
-    for (int i = 0; i < 10; i++) {
-        for (int j = 0; j < 3; j++) {
-            for (int k = 0; k < 5; k++) {
-                fluid2Positions.push_back(Vector3d(0.1 * i - 0.5, 0.1 * j, 0.1 * k - 0.2));
-            }
-        }
-    }**/
-
-    // for (int i = 0; i < 10; i++) {
-    //     for (int j = 0; j < 10; j++) {
-    //         for (int k = 0; k < 5; k++) {
-    //            fluid1Positions.push_back(Vector3d(0.1 * i + 0.6, 0.1 * j, 0.1 * k - 0.2));
-    //         }
-    //     }
-    // }
-
-    // for (int i = 0; i < 10; i++) {
-    //     for (int j = 0; j < 10; j++) {
-    //         for (int k = 0; k < 5; k++) {
-    //             fluid2Positions.push_back(Vector3d(0.1 * i - 1.5, 0.1 * j, 0.1 * k - 0.2));
-    //         }
-    //     }
-    // }
-
-    std::vector<Point> fluid1Points;
-    std::vector<Point> fluid2Points;
-
-    for (int i = 0; i < fluid1Positions.size(); i++) {
-        Particle* newParticle = new Particle{fluid1Positions[i], Vector3d(0, 0, 0), 0, fluid1_density, fluid1_density, 10, fluid1};
-
-        m_particles.push_back(newParticle);
-
-        fluid1Points.push_back(Point{fluid1Positions[i], 300});
-    }
-
-    for (int i = 0; i < fluid2Positions.size(); i++) {
-        Particle* newParticle = new Particle{fluid2Positions[i], Vector3d(0, 0, 0), 0, fluid2_density, fluid2_density, 10, fluid2};
-        m_particles.push_back(newParticle);
-
-        fluid2Points.push_back(Point{fluid2Positions[i], 300});
-    }
-
-    m_fluids[0]->numParticles = fluid1Positions.size();
-    m_fluids[1]->numParticles = fluid2Positions.size();
-
-
-
-    m_pointcloud1.init(fluid1Points, 0);
-    m_pointcloud2.init(fluid2Points, 1);
-
+    
+    // Calculate and store the starting indices for each fluid
+    updateFluidIndices();
+    
     initGround();
     initBox();
 }
 
-void Simulation::update(double seconds)
-{
-    // STUDENTS: This method should contain all the time-stepping logic for your simulation.
-    //   Specifically, the code you write here should compute new, updated vertex positions for your
-    //   simulation mesh, and it should then call m_shape.setVertices to update the display with those
-    //   newly-updated vertices.
-
-    // STUDENTS: As currently written, the program will just continually compute simulation timesteps as long
-    //    as the program is running (see View::tick in view.cpp) . You might want to e.g. add a hotkey for pausing
-    //    the simulation, and perhaps start the simulation out in a paused state.
-
-    // Note that the "seconds" parameter represents the amount of time that has passed since
-    // the last update
-
-    // m_particles[i]->velocity += accelerations[i] * seconds;
-    // m_positions[i] += m_particles[i]->velocity * seconds;
-    //std::cout << m_positions[i] << std::endl;
-
-
-    seconds = 0.01;
+void Simulation::update(double seconds) {
+    seconds = std::min(seconds, 0.01);  // Cap maximum time step
+    
+    // Safety check - don't proceed if there are no particles
+    if (m_particles.empty()) return;
 
     std::vector<Vector3d> accelerations;
     accelerations.resize(m_particles.size());
 
-#pragma omp parallel for
+    // Calculate initial accelerations
+    #pragma omp parallel for
     for (int i = 0; i < m_particles.size(); i++) {
+        if (!m_particles[i]) continue; // Skip null particles
         accelerations[i] = (fPressure(i) + fViscosity(i)) / m_particles[i]->density + gravity;
     }
 
     std::vector<Vector3d> newAccelerations = accelerations;
-#pragma omp parallel for
+    
+    // Update positions using Leapfrog integration
+    #pragma omp parallel for
     for (int i = 0; i < m_particles.size(); i++) {
-        // Leapfrog
-        m_particles[i]->position += m_particles[i]->velocity * seconds + 0.5 * accelerations[i] * seconds * seconds; // Update position
+        m_particles[i]->position += m_particles[i]->velocity * seconds + 0.5 * accelerations[i] * seconds * seconds;
     }
 
-#pragma omp parallel for
-    for (int i = 0; i < m_particles.size(); i++) {
-        m_particles[i]->density = density_S(i);
-        m_particles[i]->pressure = calculatePressure(i, m_particles[i]->density, m_particles[i]->restDensity); // Update density+pressure using new position
-    }
-
-#pragma omp parallel for
-    for (int i = 0; i < m_particles.size(); i++) {
-
-        newAccelerations[i] = (fPressure(i) + fViscosity(i) + fSurfaceTension(i) + fInterfaceTension(i)) / m_particles[i]->density + gravity; // Update acceleration
-    }
-
-#pragma omp parallel for
-    for (int i = 0; i < m_particles.size(); i++) {
-
-        m_particles[i]->velocity += 0.5 * (accelerations[i] + newAccelerations[i]) * seconds; // Update velocity using both position and acceleration
-        evaluateCollisions(i);
-
-    }
-
-#pragma omp parallel for
+    // Update densities and pressures
+    #pragma omp parallel for
     for (int i = 0; i < m_particles.size(); i++) {
         m_particles[i]->density = density_S(i);
         m_particles[i]->pressure = calculatePressure(i, m_particles[i]->density, m_particles[i]->restDensity);
     }
 
-    // Slowly heat the bottom + cool the top
-
+    // Calculate new accelerations with all forces
+    #pragma omp parallel for
     for (int i = 0; i < m_particles.size(); i++) {
+        newAccelerations[i] = (fPressure(i) + fViscosity(i) + fSurfaceTension(i) + fInterfaceTension(i)) / m_particles[i]->density + gravity;
+    }
 
+    // Update velocities and handle collisions
+    #pragma omp parallel for
+    for (int i = 0; i < m_particles.size(); i++) {
+        m_particles[i]->velocity += 0.5 * (accelerations[i] + newAccelerations[i]) * seconds;
+        evaluateCollisions(i);
+    }
+
+    // Final density and pressure update
+    #pragma omp parallel for
+    for (int i = 0; i < m_particles.size(); i++) {
+        m_particles[i]->density = density_S(i);
+        m_particles[i]->pressure = calculatePressure(i, m_particles[i]->density, m_particles[i]->restDensity);
+    }
+
+    // Temperature diffusion and effects
+    
+    // Heat sources and sinks (bottom and top)
+    for (int i = 0; i < m_particles.size(); i++) {
         if (m_particles[i]->position[1] < 0.3) {
-
             m_particles[i]->temperature = fmin(m_particles[i]->temperature + 0.1, 50);
-
         }
 
         if (m_particles[i]->position[1] > 0.7) {
-
             m_particles[i]->temperature = fmax(m_particles[i]->temperature - 0.1, 1);
-
         }
-
     }
 
-    // TEMPERATURE DIFFUSION
-
-    // Heat equation for diffusion using Euler
-
-    float TEMPERATURE_DENSITY_CONSTANT = 10000;
-
+    // Heat diffusion
     std::vector<double> deltaTValues;
     deltaTValues.resize(m_particles.size());
 
-#pragma omp parallel for
+    #pragma omp parallel for
     for (int i = 0; i < m_particles.size(); i++) {
         double deltaT = calculateTemperatureDiffusionStep(i);
         deltaTValues[i] = deltaT;
     }
 
-#pragma omp parallel for
+    #pragma omp parallel for
     for (int i = 0; i < m_particles.size(); i++) {
         m_particles[i]->temperature += deltaTValues[i] * seconds;
-
-        if (m_particles[i]->temperature < 1) {
-
-            m_particles[i]->temperature = 1;
-
+        m_particles[i]->temperature = fmax(1.0, fmin(m_particles[i]->temperature, 50.0));
+        
+        // Update rest density for temperature-dependent fluids
+        if (m_particles[i]->fluid->temperatureDependent) {
+            m_particles[i]->restDensity = m_particles[i]->fluid->temperatureConstant / m_particles[i]->temperature;
         }
+    }
 
-        if (m_particles[i]->temperature > 50) {
-
-            m_particles[i]->temperature = 50;
-
+    // Update point clouds for visualization using fluid indices for more efficient access
+    std::vector<std::vector<Point>> fluidPoints(m_fluids.size());
+    std::vector<std::vector<Vector3d>> fluidPositions(m_fluids.size());
+    
+    // Pre-allocate space for points to avoid constant reallocation
+    for (size_t fluidIdx = 0; fluidIdx < m_fluids.size(); fluidIdx++) {
+        fluidPoints[fluidIdx].reserve(m_fluids[fluidIdx]->numParticles);
+        fluidPositions[fluidIdx].reserve(m_fluids[fluidIdx]->numParticles);
+    }
+    
+    // Use fluid indices to directly access each fluid's particles
+    for (size_t fluidIdx = 0; fluidIdx < m_fluids.size(); fluidIdx++) {
+        for (int i = m_fluidStartIndices[fluidIdx]; i < m_fluidStartIndices[fluidIdx+1]; i++) {
+            fluidPoints[fluidIdx].push_back(Point{
+                m_particles[i]->position, 
+                m_particles[i]->temperature
+            });
+            fluidPositions[fluidIdx].push_back(m_particles[i]->position);
         }
-
-
-
+        
+        // Update point cloud for rendering
+        m_pointclouds[fluidIdx]->setPoints(fluidPoints[fluidIdx]);
     }
-
-    // Only liquid 2 (on the bottom) is temperature dependent?
-
-    for (int i = m_fluids[0]->numParticles; i < m_particles.size(); i++) {
-
-        m_particles[i]->restDensity = TEMPERATURE_DENSITY_CONSTANT / m_particles[i]->temperature;
-        /*std::cout << m_particles[i]->restDensity << " " << m_particles[i]->density << std::endl;*/
-
+    
+    // Update exporter
+    if (m_fluids.size() >= 2) {  // Ensure backward compatibility with exporter
+        m_exporter.addFrame(fluidPositions[0], fluidPositions[1]);
     }
-
-
-    // Export positions to point cloud and exporter
-
-    std::vector<Point> fluid1Points;
-    std::vector<Point> fluid2Points;
-    std::vector<Vector3d> fluid1Positions;
-    std::vector<Vector3d> fluid2Positions;
-
-    for (int i = 0; i < m_fluids[0]->numParticles; i++) {
-
-        fluid1Points.push_back(Point{m_particles[i]->position, m_particles[i]->temperature});
-        fluid1Positions.push_back(m_particles[i]->position);
-
-    }
-
-    for (int i = 0; i < m_fluids[1]->numParticles; i++) {
-
-        fluid2Points.push_back(Point{m_particles[m_fluids[0]->numParticles + i]->position, m_particles[m_fluids[0]->numParticles + i]->temperature});
-        fluid2Positions.push_back(m_particles[m_fluids[0]->numParticles + i]->position);
-
-    }
-
-    m_pointcloud1.setPoints(fluid1Points);
-    m_pointcloud2.setPoints(fluid2Points);
-
-    m_exporter.addFrame(fluid1Positions, fluid2Positions);
 }
 
-void Simulation::draw(Shader *shader)
-{
+void Simulation::draw(Shader *shader) {
     m_shape.draw(shader);
     m_ground.draw(shader);
-    m_pointcloud1.draw(shader);
-    m_pointcloud2.draw(shader);
+    
+    // Draw all fluid point clouds
+    for (auto& pointcloud : m_pointclouds) {
+        pointcloud->draw(shader);
+    }
+    
     m_box.draw(shader);
-    //m_collider.draw(shader);
 }
 
-void Simulation::initGround()
-{
+void Simulation::initGround() {
     std::vector<Vector3d> groundVerts;
     std::vector<Vector3i> groundFaces;
     groundVerts.emplace_back(-5, 0, -5);
@@ -377,51 +327,37 @@ void Simulation::initBox()
 }
 
 double Simulation::density_S(int i) {
-
-    // CHANGE FOR MULTI FLUIDS: Still iterate over all particles?? (Check later)
-
     double out = 0;
     // Using reduction to safely accumulate the sum in parallel
     #pragma omp parallel for reduction(+:out)
     for (int j = 0; j < m_particles.size(); j++) {
-        // if (i == j) continue; not necessary??
-        //
-        // Each thread calculates contributions from some particles
-        // and adds them to its private copy of 'out'
         double r_squared = (m_particles[i]->position - m_particles[j]->position).squaredNorm() + 0.00001;
         if (r_squared < h * h) {
             out += m_particles[j]->fluid->mass * Wpoly6Coeff * pow((h * h - r_squared), 3);
         }
     }
 
-    // At the end, all private copies are added together into the shared 'out'
     return out;
 }
 
 double Simulation::calculateTemperatureDiffusionStep(int i) {
-
     Particle *particleI = m_particles[i];
-
     double out = 0;
 
     for (int j = 0; j < m_particles.size(); j++) {
-
         Particle *particleJ = m_particles[j];
         Vector3d r = particleI->position - particleJ->position;
         double r_squaredNorm = r.squaredNorm() + 0.00001;
         double h_squared = h * h;
         if (r_squaredNorm < h_squared) {
-
-            double W_Laplacian = Wpoly6LaplacianCoeff * (h_squared - r_squaredNorm) * (r_squaredNorm - 0.75 * (h_squared - r_squaredNorm));
-
-            out += diffusionCoeff * (particleJ->fluid->mass / particleJ->density * W_Laplacian) * (particleJ->temperature - particleI->temperature);
-
+            double W_Laplacian = Wpoly6LaplacianCoeff * (h_squared - r_squaredNorm) * 
+                                 (r_squaredNorm - 0.75 * (h_squared - r_squaredNorm));
+            out += diffusionCoeff * (particleJ->fluid->mass / particleJ->density * W_Laplacian) * 
+                                    (particleJ->temperature - particleI->temperature);
         }
-
     }
 
     return out;
-
 }
 
 double Simulation::calculatePressure(int i, double density, double restDensity) {
@@ -432,13 +368,13 @@ Vector3d Simulation::fPressure(int i) {
     double pressureI = m_particles[i]->pressure;
     Vector3d out(0,0,0);
     for (int j = 0; j < m_particles.size(); j++) {
-        // if (i == j) continue;
         Particle *particleJ = m_particles[j];
         Vector3d r = m_particles[i]->position - m_particles[j]->position;
         double r_norm = r.norm() + 0.00001;
         if (r_norm < h) {
             Vector3d W_Grad = (-WspikyGradCoeff * pow((h - r_norm), 2) / r_norm) * r;
-            out += particleJ->fluid->mass * (particleJ->pressure + pressureI) / (2 * particleJ->density) * W_Grad;
+            out += particleJ->fluid->mass * (particleJ->pressure + pressureI) / 
+                  (2 * particleJ->density) * W_Grad;
         }
     }
     return -out;
@@ -448,14 +384,14 @@ Vector3d Simulation::fViscosity(int i) {
     Particle *particleI = m_particles[i];
     Vector3d out(0,0,0);
     for (int j = 0; j < m_particles.size(); j++) {
-        // if (i == j) continue;
         Particle *particleJ = m_particles[j];
-        Vector3d r = m_particles[i]->position - m_particles[j]->position;
+        Vector3d r = particleI->position - particleJ->position;
         double r_norm = r.norm() + 0.00001;
         if (r_norm < h) {
             double W_Laplacian = WviscosityLaplacianCoeff * (h - r_norm);
             double avgViscosity = (particleJ->fluid->viscosity + particleI->fluid->viscosity) / 2.0;
-            out += avgViscosity * (particleJ->fluid->mass / particleJ->density * W_Laplacian) * (particleJ->velocity - particleI->velocity);
+            out += avgViscosity * (particleJ->fluid->mass / particleJ->density * W_Laplacian) * 
+                  (particleJ->velocity - particleI->velocity);
         }
     }
 
@@ -465,7 +401,6 @@ Vector3d Simulation::fViscosity(int i) {
 Vector3d Simulation::fSurfaceTension(int i) {
     Vector3d normal(0,0,0);
     for (int j = 0; j < m_particles.size(); j++) {
-        // if (i == j) continue;
         Particle *particleJ = m_particles[j];
         Vector3d r = m_particles[i]->position - m_particles[j]->position;
         double r_norm = r.norm() + 0.00001;
@@ -474,18 +409,18 @@ Vector3d Simulation::fSurfaceTension(int i) {
             normal += (particleJ->fluid->mass / particleJ->density) * W_Grad;
         }
     }
-    // std::cout << normal.norm() << std::endl;
+    
     if (normal.norm() < surfaceTensionThreshold) return Vector3d(0,0,0);
 
     double C_S_Laplacian = 0;
     for (int j = 0; j < m_particles.size(); j++) {
-        // if (i == j) continue;
         Particle *particleJ = m_particles[j];
         Vector3d r = m_particles[i]->position - m_particles[j]->position;
         double r_squaredNorm = r.squaredNorm() + 0.00001;
         double h_squared = h * h;
         if (r_squaredNorm < h_squared) {
-            double W_Laplacian = Wpoly6LaplacianCoeff * (h_squared - r_squaredNorm) * (r_squaredNorm - 0.75 * (h_squared - r_squaredNorm));
+            double W_Laplacian = Wpoly6LaplacianCoeff * (h_squared - r_squaredNorm) * 
+                                (r_squaredNorm - 0.75 * (h_squared - r_squaredNorm));
             C_S_Laplacian += (particleJ->fluid->mass / particleJ->density) * W_Laplacian;
         }
     }
@@ -495,7 +430,6 @@ Vector3d Simulation::fSurfaceTension(int i) {
 Vector3d Simulation::fInterfaceTension(int i) {
     Vector3d normal(0,0,0);
     for (int j = 0; j < m_particles.size(); j++) {
-        // if (i == j) continue;
         Particle *particleJ = m_particles[j];
         Vector3d r = m_particles[i]->position - m_particles[j]->position;
         double r_norm = r.norm() + 0.00001;
@@ -504,32 +438,23 @@ Vector3d Simulation::fInterfaceTension(int i) {
             normal += particleJ->fluid->colorI * (particleJ->fluid->mass / particleJ->density) * W_Grad;
         }
     }
-    // std::cout << normal.norm() << std::endl;
+    
     if (normal.norm() < interfaceTensionThreshold) return Vector3d(0,0,0);
 
     double C_I_Laplacian = 0;
     for (int j = 0; j < m_particles.size(); j++) {
-        // if (i == j) continue;
         Particle *particleJ = m_particles[j];
         Vector3d r = m_particles[i]->position - m_particles[j]->position;
         double r_squaredNorm = r.squaredNorm() + 0.00001;
         double h_squared = h * h;
         if (r_squaredNorm < h_squared) {
-            double W_Laplacian = Wpoly6LaplacianCoeff * (h_squared - r_squaredNorm) * (r_squaredNorm - 0.75 * (h_squared - r_squaredNorm));
+            double W_Laplacian = Wpoly6LaplacianCoeff * (h_squared - r_squaredNorm) * 
+                                (r_squaredNorm - 0.75 * (h_squared - r_squaredNorm));
             C_I_Laplacian += particleJ->fluid->colorI * (particleJ->fluid->mass / particleJ->density) * W_Laplacian;
         }
     }
     return (-interfaceTensionCoeff * C_I_Laplacian) * normal.normalized();
 }
-
-/*void Simulation::evaluateCollisions(int i) {*/
-/*    Vector3d displacement;*/
-/*    if ((displacement = checkCollision(m_particles[i]->position)) != Vector3d(0,0,0)) {*/
-/*        m_particles[i]->position += displacement;*/
-/*        displacement.normalize();*/
-/*        m_particles[i]->velocity -= 1.2 * (m_particles[i]->velocity.dot(displacement) * displacement);*/
-/*    }*/
-/*}*/
 
 void Simulation::evaluateCollisions(int i) {
     Vector3d displacement = checkCollision(m_particles[i]->position);
@@ -552,23 +477,6 @@ void Simulation::evaluateCollisions(int i) {
 }
 
 Vector3d Simulation::checkCollision(Vector3d pos) {
-    // float wallX = 1.5;
-    // float wallZ = 0.2;
-    // float ceiling = 2;
-
-    /**float wallX = 0.5;
-    float wallZ = 0.2;
-    float ceiling = 1;
-
-    Vector3d returnVector(0,0,0);
-    if (pos[1] < 0) returnVector += Vector3d(0,1,0) * -pos[1];
-    if (pos[1] > ceiling) returnVector += Vector3d(0,-1,0) * (pos[1] - ceiling);
-    if (pos[0] > wallX) returnVector += Vector3d(-1,0,0) * (pos[0] - wallX);
-    if (pos[0] < -wallX) returnVector += Vector3d(1,0,0) * (-wallX - pos[0]);
-    if (pos[2] > wallZ) returnVector += Vector3d(0,0,-1) * (pos[2] - wallZ);
-    if (pos[2] < -wallZ) returnVector += Vector3d(0,0,1) * (-wallZ - pos[2]);
-    return returnVector;**/
-
     float r = sqrt(pos[0] * pos[0] + pos[2] * pos[2]);
     float radiusAtY = (coneTop - pos[1]) / coneTop * radius;
     Vector3d returnVector(0,0,0);
@@ -578,61 +486,66 @@ Vector3d Simulation::checkCollision(Vector3d pos) {
     return returnVector;
 }
 
-
-
-void Simulation::updateParameters(
-    float new_fluid1_density,
-    float new_fluid2_density,
-    float new_fluid1_viscosity,
-    float new_fluid2_viscosity,
-    const Eigen::Vector3d& new_gravity,
-    float new_h,
-    float new_fluid1_idealGasConstant,
-    float new_fluid2_idealGasConstant,
-    float new_surfaceTensionThreshold,
-    float new_surfaceTensionCoeff,
-    float new_interfaceTensionThreshold,
-    float new_interfaceTensionCoeff,
-    float new_diffusionCoeff
-    ) {
-    // Update parameters
-    fluid1_density = new_fluid1_density;
-    fluid1_viscosity = new_fluid1_viscosity;
-    fluid2_density = new_fluid2_density;
-    fluid2_viscosity = new_fluid2_viscosity;
-    gravity = new_gravity;
-    fluid1_idealGasConstant = new_fluid1_idealGasConstant;
-    fluid2_idealGasConstant = new_fluid2_idealGasConstant;
-    surfaceTensionThreshold = new_surfaceTensionThreshold;
-    surfaceTensionCoeff = new_surfaceTensionCoeff;
-    interfaceTensionThreshold = new_interfaceTensionThreshold;
-    interfaceTensionCoeff = new_interfaceTensionCoeff;
-    diffusionCoeff = new_diffusionCoeff;
-
-    // Only update h and kernel coefficients if h has changed
-    if (h != new_h) {
-        h = new_h;
-        updateKernelCoefficients();
+void Simulation::updateParameters(const std::map<QString, float>& paramValues) {
+    // Update global parameters
+    for (const auto& [param, value] : paramValues) {
+        if (param == "smoothingLength") {
+            if (h != value) {
+                h = value;
+                updateKernelCoefficients();
+            }
+        } else if (param == "gravity_x") {
+            gravity[0] = value;
+        } else if (param == "gravity_y") {
+            gravity[1] = value;
+        } else if (param == "gravity_z") {
+            gravity[2] = value;
+        } else if (param == "surfaceTensionThreshold") {
+            surfaceTensionThreshold = value;
+        } else if (param == "surfaceTensionCoeff") {
+            surfaceTensionCoeff = value;
+        } else if (param == "interfaceTensionThreshold") {
+            interfaceTensionThreshold = value;
+        } else if (param == "interfaceTensionCoeff") {
+            interfaceTensionCoeff = value;
+        } else if (param == "diffusionCoeff") {
+            diffusionCoeff = value;
+        }
     }
-
-    // Update rest density, viscosity
-
-    for (int i = 0; i < m_fluids[0]->numParticles; i++) {
-
-        m_particles[i]->restDensity = fluid1_density;
-
+    
+    // Update fluid-specific parameters
+    for (size_t i = 0; i < m_fluids.size(); i++) {
+        QString prefix = QString("fluid%1_").arg(i+1);
+        
+        for (const auto& [param, value] : paramValues) {
+            if (param.startsWith(prefix)) {
+                QString fluidParam = param.mid(prefix.length());
+                
+                if (fluidParam == "density") {
+                    m_fluids[i]->density = value;
+                    
+                    // Update rest density for non-temperature dependent particles
+                    if (!m_fluids[i]->temperatureDependent) {
+                        m_fluids[i]->restDensity = value;
+                        
+                        // Update particle rest densities using fluid indices
+                        for (int p = m_fluidStartIndices[i]; p < m_fluidStartIndices[i+1]; p++) {
+                            m_particles[p]->restDensity = value;
+                        }
+                    }
+                } else if (fluidParam == "viscosity") {
+                    m_fluids[i]->viscosity = value;
+                } else if (fluidParam == "idealGasConstant") {
+                    m_fluids[i]->gasConstant = value;
+                } else if (fluidParam == "colorI") {
+                    m_fluids[i]->colorI = value;
+                }
+            }
+        }
     }
-
-    for (int i = 0; i < m_fluids[1]->numParticles; i++) {
-
-        m_particles[m_fluids[0]->numParticles + i]->restDensity = fluid2_density;
-
-    }
-
-    m_fluids[0]->viscosity = fluid1_viscosity;
-    m_fluids[1]->viscosity = fluid2_viscosity;
-
-    // Update the density and pressure of all particles
+    
+    // Recalculate all densities and pressures based on new parameters
+    #pragma omp parallel for
     for (int i = 0; i < m_particles.size(); i++) {
         m_particles[i]->density = density_S(i);
         m_particles[i]->pressure = calculatePressure(i, m_particles[i]->density, m_particles[i]->restDensity);
@@ -648,16 +561,114 @@ void Simulation::updateKernelCoefficients() {
     WviscosityLaplacianCoeff = 45.f / (M_PI * pow(h, 6));
 }
 
-void Simulation::reinitialize()
-{
-    // Clear existing particles
+void Simulation::reinitialize() {
+    // Clean up existing particles
     for (auto particle : m_particles) {
         delete particle;
     }
     m_particles.clear();
-
+    
+    // Reset particle counters in fluids
+    for (auto& fluid : m_fluids) {
+        fluid->numParticles = 0;
+    }
+    
+    // Reset fluid indices
+    m_fluidStartIndices.clear();
+    m_fluidStartIndices.resize(m_fluids.size() + 1, 0);
+    
     // Reinitialize simulation
     init();
+}
+
+void Simulation::createFluidParticles(Fluid* fluid, const Eigen::Vector3d& startPos, 
+                                     const Eigen::Vector3d& dimensions, double spacing) {
+    std::vector<Vector3d> positions;
+    std::vector<Point> points;
+    
+    // Calculate number of particles in each dimension
+    int nx = static_cast<int>(dimensions.x() / spacing);
+    int ny = static_cast<int>(dimensions.y() / spacing);
+    int nz = static_cast<int>(dimensions.z() / spacing);
+    
+    // Create a grid of particles
+    for (int i = 0; i < nx; i++) {
+        for (int j = 0; j < ny; j++) {
+            for (int k = 0; k < nz; k++) {
+                Vector3d pos = startPos + Vector3d(
+                    i * spacing, 
+                    j * spacing, 
+                    k * spacing
+                );
+                
+                // Check if position is valid (inside boundaries)
+                if (checkCollision(pos) == Vector3d(0,0,0)) {
+                    positions.push_back(pos);
+                    points.push_back(Point{pos, 10}); // Initial temperature
+                }
+            }
+        }
+    }
+    
+    // Find the fluid index
+    int fluidIndex = -1;
+    for (size_t i = 0; i < m_fluids.size(); i++) {
+        if (m_fluids[i].get() == fluid) {
+            fluidIndex = i;
+            break;
+        }
+    }
+    
+    if (fluidIndex == -1) {
+        std::cerr << "Error: Fluid not found in simulation" << std::endl;
+        return;
+    }
+    
+    // Create particles and add them to the simulation at the correct position
+    // (after the last particle of the previous fluid)
+    int insertPosition = m_fluidStartIndices[fluidIndex+1];
+    
+    // Create temporary storage for new particles
+    std::vector<Particle*> newParticles;
+    newParticles.reserve(positions.size());
+    
+    for (const auto& pos : positions) {
+        Particle* newParticle = new Particle{
+            pos, 
+            Vector3d(0, 0, 0), // Initial velocity
+            0, // Initial pressure
+            fluid->density, 
+            fluid->restDensity, 
+            10, // Initial temperature
+            fluid
+        };
+        
+        newParticles.push_back(newParticle);
+    }
+    
+    // Insert the new particles at the correct position
+    m_particles.insert(m_particles.begin() + insertPosition, newParticles.begin(), newParticles.end());
+    
+    // Update fluid's particle count
+    fluid->numParticles += positions.size();
+    
+    // Update start indices for all subsequent fluids
+    for (size_t i = fluidIndex + 1; i <= m_fluids.size(); i++) {
+        m_fluidStartIndices[i] += positions.size();
+    }
+    
+    // Find the pointcloud for this fluid and update it
+    if (fluidIndex >= 0 && fluidIndex < m_pointclouds.size()) {
+        // Get all particles for this fluid
+        std::vector<Point> allPoints;
+        allPoints.reserve(fluid->numParticles);
+        
+        for (int i = m_fluidStartIndices[fluidIndex]; i < m_fluidStartIndices[fluidIndex+1]; i++) {
+            allPoints.push_back(Point{m_particles[i]->position, m_particles[i]->temperature});
+        }
+        
+        m_pointclouds[fluidIndex]->setPoints(allPoints);
+    }
 }
 
 double Simulation::calculateTimeStep() {
@@ -682,4 +693,18 @@ double Simulation::calculateTimeStep() {
     
     // Clamp to reasonable range
     return std::min(std::max(timeStep, 0.001), 0.01);
+}
+
+void Simulation::addFluid(const Fluid& fluidProperties) {
+    // Create a new fluid
+    std::unique_ptr<Fluid> newFluid = std::make_unique<Fluid>(fluidProperties);
+    
+    // Add it to the simulation
+    m_fluids.push_back(std::move(newFluid));
+    
+    // Create a point cloud for this fluid
+    m_pointclouds.push_back(std::make_unique<PointCloud>(20.0f));
+    
+    // Update fluid indices array
+    m_fluidStartIndices.push_back(m_fluidStartIndices.back());
 }

@@ -8,6 +8,8 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGroupBox>
+#include <QComboBox>
+#include <QTabWidget>
 #include <map>
 #include <string>
 
@@ -25,11 +27,13 @@ private slots:
     void resetToDefaults();
     void resetSimulation();
     void updateParameter(int value);
+    void fluidSelectionChanged(int index);
 
 private:
     void createUI();
     void setupConnections();
     void updateSimulationParameters();
+    void updateFluidParamUi(int fluidIndex);
     
     // Convert slider value to parameter value (mapping integer to float)
     float sliderToParam(int sliderValue, float minValue, float maxValue);
@@ -38,6 +42,8 @@ private:
 
     QSettings& m_settings;
     Simulation* m_simulation;
+    QTabWidget* m_tabWidget;
+    QComboBox* m_fluidSelector;
     
     struct ParameterInfo {
         QString name;
@@ -50,7 +56,13 @@ private:
         QLabel* valueLabel;
     };
     
-    std::map<QString, ParameterInfo> m_parameters;
+    // Global parameters (smoothing length, gravity, etc.)
+    std::map<QString, ParameterInfo> m_globalParameters;
+    
+    // Fluid parameters per fluid (density, viscosity, etc.)
+    std::vector<std::map<QString, ParameterInfo>> m_fluidParameters;
+    
     QPushButton* m_resetButton;
     QPushButton* m_resetSimulationButton;
+    QPushButton* m_addFluidButton;
 };
