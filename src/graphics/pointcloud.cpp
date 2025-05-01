@@ -59,7 +59,7 @@ void PointCloud::init(const std::vector<Point>& points, int i)
     m_red = 0;
     m_blue = 1 - i;
     m_green = i;
-    m_alpha = 1;
+    m_alpha = i * 0.75 + 0.25;
 }
 
 void PointCloud::setPoints(const std::vector<Point> &points)

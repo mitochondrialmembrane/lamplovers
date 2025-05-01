@@ -30,8 +30,8 @@ Simulation::Simulation(QSettings& settings) :
     h(settings.value("Parameters/smoothingLength").toFloat()),
     m_pointcloud1(20),
     m_pointcloud2(20),
-    radius (0.4),
-    ceiling (1),
+    radius (0.6),
+    ceiling (1.5),
     coneTop (10000)
 {
     // Initialize kernel coefficients
@@ -64,6 +64,7 @@ Simulation::Simulation(QSettings& settings) :
 //
 // {}
 
+
 void Simulation::init()
 {
     // STUDENTS: This code loads up the tetrahedral mesh in 'example-meshes/single-tet.mesh'
@@ -93,7 +94,7 @@ void Simulation::init()
 
     std::vector<Vector3d> fluid1Positions;
     std::vector<Vector3d> fluid2Positions;
-    int d = 12; // Change to increase the density of particles
+    int d = 15; // Change to increase the density of particles
 
     #pragma omp parallel
     {
@@ -106,8 +107,9 @@ void Simulation::init()
                 for (int k = 0; k < ceiling * d; k++) {
                     Vector3d pos((float) i / d, (float) k / d, (float) j / d);
                     if (checkCollision(pos) == Vector3d(0,0,0)) {
-                        if (k > 0.3 * d) local_fluid1Positions.push_back(pos);
-                        else local_fluid2Positions.push_back(pos);
+                        //if (k > 0.3 * d)
+                        if ((pow(pos[0], 2) + pow(pos[1] - 0.3, 2) + pow(pos[2], 2) <= 0.09)) local_fluid2Positions.push_back(pos);
+                        else local_fluid1Positions.push_back(pos);
                     }
                 }
             }
@@ -239,17 +241,17 @@ void Simulation::update(double seconds)
 
     // Slowly heat the bottom + cool the top
 
-    for (int i = 0; i < m_particles.size(); i++) {
+    for (int i = m_fluids[0]->numParticles; i < m_particles.size(); i++) {
 
-        if (m_particles[i]->position[1] < 0.3) {
+        if (m_particles[i]->position[1] < ceiling * 0.5) {
 
-            m_particles[i]->temperature = fmin(m_particles[i]->temperature + 0.1, 50);
+            m_particles[i]->temperature = fmin(m_particles[i]->temperature + 1 * pow(1 - m_particles[i]->position[1] / ceiling,5), 50);
 
         }
 
-        if (m_particles[i]->position[1] > 0.7) {
+        if (m_particles[i]->position[1] > ceiling * 0.5) {
 
-            m_particles[i]->temperature = fmax(m_particles[i]->temperature - 0.1, 1);
+            m_particles[i]->temperature = fmax(m_particles[i]->temperature - 1 * pow(m_particles[i]->position[1] / ceiling,5), 1);
 
         }
 
