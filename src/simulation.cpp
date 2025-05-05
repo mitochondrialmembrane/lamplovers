@@ -108,7 +108,7 @@ void Simulation::init()
                     Vector3d pos((float) i / d, (float) k / d, (float) j / d);
                     if (checkCollision(pos) == Vector3d(0,0,0)) {
                         //if (k > 0.3 * d)
-                        if ((pow(pos[0], 2) + pow(pos[1] - 0.3, 2) + pow(pos[2], 2) <= 0.09)) local_fluid2Positions.push_back(pos);
+                        if ((pow(pos[0], 2) + pow(pos[1] - 0.3, 2) + pow(pos[2], 2) <= 0.04)) local_fluid2Positions.push_back(pos);
                         else local_fluid1Positions.push_back(pos);
                     }
                 }
@@ -240,18 +240,20 @@ void Simulation::update(double seconds)
     }
 
     // Slowly heat the bottom + cool the top
+#pragma omp parallel for
+    for (int i = m_particles[0]->fluid->numParticles; i < m_particles.size(); i++) {
 
-    for (int i = m_fluids[0]->numParticles; i < m_particles.size(); i++) {
+        if (m_particles[i]->position[1] < ceiling * 0.2) {
 
-        if (m_particles[i]->position[1] < ceiling * 0.5) {
-
-            m_particles[i]->temperature = fmin(m_particles[i]->temperature + 1 * pow(1 - m_particles[i]->position[1] / ceiling,5), 50);
+            m_particles[i]->temperature = fmin(m_particles[i]->temperature + 1 * pow(1 - m_particles[i]->position[1] / ceiling,5), 30); // bottom gains heat
 
         }
 
         if (m_particles[i]->position[1] > ceiling * 0.5) {
 
-            m_particles[i]->temperature = fmax(m_particles[i]->temperature - 1 * pow(m_particles[i]->position[1] / ceiling,5), 1);
+        m_particles[i]->temperature = fmax(m_particles[i]->temperature - 0.4 * pow(m_particles[i]->position[1] / ceiling,4), 1); // lose heat to atmosphere
+
+        // m_particles[i]->temperature += 0.001 * (50 - m_particles[i]->temperature);
 
         }
 
@@ -267,6 +269,9 @@ void Simulation::update(double seconds)
     deltaTValues.resize(m_particles.size());
 
 #pragma omp parallel for
+
+    // TODO: Separate diffusion for each liquid? (Diffusion within liquids is stronger)
+
     for (int i = 0; i < m_particles.size(); i++) {
         double deltaT = calculateTemperatureDiffusionStep(i);
         deltaTValues[i] = deltaT;
@@ -282,9 +287,9 @@ void Simulation::update(double seconds)
 
         }
 
-        if (m_particles[i]->temperature > 50) {
+        if (m_particles[i]->temperature > 30) {
 
-            m_particles[i]->temperature = 50;
+            m_particles[i]->temperature = 30;
 
         }
 
@@ -293,11 +298,11 @@ void Simulation::update(double seconds)
     }
 
     // Only liquid 2 (on the bottom) is temperature dependent?
-
+#pragma omp parallel for
     for (int i = m_fluids[0]->numParticles; i < m_particles.size(); i++) {
 
         m_particles[i]->restDensity = TEMPERATURE_DENSITY_CONSTANT / m_particles[i]->temperature;
-        /*std::cout << m_particles[i]->restDensity << " " << m_particles[i]->density << std::endl;*/
+        // std::cout << m_particles[i]->temperature << std::endl;
 
     }
 
@@ -416,7 +421,19 @@ double Simulation::calculateTemperatureDiffusionStep(int i) {
 
             double W_Laplacian = Wpoly6LaplacianCoeff * (h_squared - r_squaredNorm) * (r_squaredNorm - 0.75 * (h_squared - r_squaredNorm));
 
-            out += diffusionCoeff * (particleJ->fluid->mass / particleJ->density * W_Laplacian) * (particleJ->temperature - particleI->temperature);
+            float coeff;
+
+            if (particleI->fluid->colorI == particleJ->fluid->colorI) {
+
+                coeff = diffusionCoeff * 10;
+
+            } else {
+
+                coeff = diffusionCoeff;
+
+            }
+
+            out += coeff * (particleJ->fluid->mass / particleJ->density * W_Laplacian) * (particleJ->temperature - particleI->temperature);
 
         }
 

@@ -15,7 +15,7 @@ uniform int u_renderMode;
 
 void main() {
     if (u_renderMode == 1) { // Point Cloud Shading
-        fragColor = vec4((vTemp - 5) / 10, green, blue, alpha);
+        fragColor = vec4(vTemp / 30, green, blue, alpha);
         // Simple color-based point rendering
         //float dist = length(gl_PointCoord - vec2(0.5)); // Circular effect
         //if (dist > 0.5) discard; // Make points round

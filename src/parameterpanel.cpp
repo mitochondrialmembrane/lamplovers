@@ -131,7 +131,7 @@ void ParameterPanel::createUI()
         "Interface Tension Coefficient",
         "Controls the strength of interface tension. Higher values cause more separation between fluids.",
         0.0f, 1000.0f,
-        m_settings.value("Parameters/interfaceTensionCoeff", 20.0f).toFloat(),
+        m_settings.value("Parameters/interfaceTensionCoeff", 200.0f).toFloat(),
         nullptr, nullptr
     };
 
@@ -139,8 +139,8 @@ void ParameterPanel::createUI()
         "diffusionCoeff",
         "Diffusion Coefficient",
         "Controls the strength of diffusion. Higher values cause temperature to diffuse faster.",
-        0.0f, 0.01f,
-        m_settings.value("Parameters/interfaceTensionCoeff", 0.0001f).toFloat(),
+        0.0f, 0.1f,
+        m_settings.value("Parameters/diffusionCoeff", 0.001f).toFloat(),
         nullptr, nullptr
     };
 
