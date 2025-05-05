@@ -32,7 +32,8 @@ Simulation::Simulation(QSettings& settings) :
     m_pointcloud2(20),
     radius (0.6),
     ceiling (1.5),
-    coneTop (10000)
+    coneTop (10000),
+    maxTemp (50)
 {
     // Initialize kernel coefficients
     updateKernelCoefficients();
@@ -108,7 +109,11 @@ void Simulation::init()
                     Vector3d pos((float) i / d, (float) k / d, (float) j / d);
                     if (checkCollision(pos) == Vector3d(0,0,0)) {
                         //if (k > 0.3 * d)
-                        if ((pow(pos[0], 2) + pow(pos[1] - 0.3, 2) + pow(pos[2], 2) <= 0.04)) local_fluid2Positions.push_back(pos);
+                        if (
+                            (pow(pos[0] + 0.3, 2) + pow(pos[1] - 0.4, 2) + pow(pos[2] + 0.1, 2) <= 0.0625) ||
+                            (pow(pos[0] - 0.3, 2) + pow(pos[1] - 1.0, 2) + pow(pos[2] - 0.3, 2) <= 0.03)) {
+                                local_fluid2Positions.push_back(pos);
+                            }
                         else local_fluid1Positions.push_back(pos);
                     }
                 }
@@ -241,17 +246,17 @@ void Simulation::update(double seconds)
 
     // Slowly heat the bottom + cool the top
 #pragma omp parallel for
-    for (int i = m_particles[0]->fluid->numParticles; i < m_particles.size(); i++) {
+    for (int i = 0; i < m_particles.size(); i++) {
 
         if (m_particles[i]->position[1] < ceiling * 0.2) {
 
-            m_particles[i]->temperature = fmin(m_particles[i]->temperature + 1 * pow(1 - m_particles[i]->position[1] / ceiling,5), 30); // bottom gains heat
+            m_particles[i]->temperature = fmin(m_particles[i]->temperature + 1 * pow(1 - m_particles[i]->position[1] / ceiling,5), maxTemp); // bottom gains heat
 
         }
 
         if (m_particles[i]->position[1] > ceiling * 0.5) {
 
-        m_particles[i]->temperature = fmax(m_particles[i]->temperature - 0.2 * pow(m_particles[i]->position[1] / ceiling,2), 1); // lose heat to atmosphere
+        m_particles[i]->temperature = fmax(m_particles[i]->temperature - 0.15 * pow(m_particles[i]->position[1] / ceiling,2), 1); // lose heat to atmosphere
 
         // m_particles[i]->temperature += 0.001 * (50 - m_particles[i]->temperature);
 
@@ -287,9 +292,9 @@ void Simulation::update(double seconds)
 
         }
 
-        if (m_particles[i]->temperature > 30) {
+        if (m_particles[i]->temperature > maxTemp) {
 
-            m_particles[i]->temperature = 30;
+            m_particles[i]->temperature = maxTemp;
 
         }
 
@@ -423,7 +428,7 @@ double Simulation::calculateTemperatureDiffusionStep(int i) {
 
             float coeff;
 
-            if (particleI->fluid->colorI == particleJ->fluid->colorI) {
+            if (particleI->fluid->colorI == -0.5 && particleJ->fluid->colorI == -0.5) {
 
                 coeff = diffusionCoeff * 10;
 

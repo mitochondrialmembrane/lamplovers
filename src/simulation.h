@@ -111,6 +111,7 @@ private:
     float interfaceTensionThreshold;
     float interfaceTensionCoeff;
     float diffusionCoeff;
+    float maxTemp;
 
     // Helper method to update kernel coefficients when h changes
     void updateKernelCoefficients();
