@@ -251,7 +251,7 @@ void Simulation::update(double seconds)
 
         if (m_particles[i]->position[1] > ceiling * 0.5) {
 
-        m_particles[i]->temperature = fmax(m_particles[i]->temperature - 0.4 * pow(m_particles[i]->position[1] / ceiling,4), 1); // lose heat to atmosphere
+        m_particles[i]->temperature = fmax(m_particles[i]->temperature - 0.2 * pow(m_particles[i]->position[1] / ceiling,2), 1); // lose heat to atmosphere
 
         // m_particles[i]->temperature += 0.001 * (50 - m_particles[i]->temperature);
 
