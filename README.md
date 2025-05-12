@@ -14,4 +14,6 @@ Papers:
 
 Results:
 
-Presentation Slides:
+https://github.com/user-attachments/assets/7a834913-e9db-474e-aba1-b7aa2fa63d50
+
+Presentation Slides: https://docs.google.com/presentation/d/1a4QaHZALaLeDJEuLGPqXMRwfZE5R34Wpyb3AAHCEKLI/edit?usp=sharing
